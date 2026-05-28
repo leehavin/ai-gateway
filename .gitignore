@@ -1,0 +1,164 @@
+# =============================================================================
+# DataChat / AIHUB — GitHub 上传忽略规则
+# .NET 8 Gateway + WinForms + Vue 3 (web/chat-ui, web/embed)
+# =============================================================================
+
+# --- 密钥与本地配置（切勿提交到 GitHub）---
+**/appsettings.*.local.json
+**/appsettings.Local.json
+**/secrets.json
+**/domains.local.json
+**/*.key
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.*.example
+
+# Gateway 上传目录与用户数据
+**/uploads/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/chat.db
+
+# --- .NET / Visual Studio ---
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+[Pp]ublish/
+[Rr]elease/
+[Dd]ebug/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]uild/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.ilk
+*.meta
+*.obj
+*.iobj
+*.ipdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+*.log
+*.tlog
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+
+# Visual Studio / Rider
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.DotSettings.user
+
+# NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# .NET test / coverage
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.VisualState.xml
+TestResult.xml
+nunit-*.xml
+coverage*.json
+coverage*.xml
+coverage*.info
+*.coverage
+*.coveragexml
+
+# --- Node.js / Vue (web/chat-ui 等) ---
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm
+.eslintcache
+.stylelintcache
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Vite / TypeScript
+*.tsbuildinfo
+
+# --- 操作系统 ---
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# --- 编辑器 / 工具 ---
+*.swp
+*~
+*.bak
+*.orig
+.history/
+
+# Cursor / Agent（本地会话，非源码）
+.cursor/
+
+# --- 杂项 ---
+*.zip
+*.7z
+*.rar
+*.tar
+*.gz
+*.pfx
+*.p12
+*.pem
+*.crt
+*.cer

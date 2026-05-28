@@ -1,0 +1,26 @@
+{
+  "name": "datachat-chat-ui",
+  "private": true,
+  "version": "1.0.0",
+  "description": "DataChat Web 客户端（Vue 3 + MateChat + Gateway SSE）",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@devui-design/icons": "^1.4.0",
+    "@matechat/core": "^1.14.0",
+    "vue": "^3.5.34",
+    "vue-devui": "^1.6.36"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.3",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "@vue/tsconfig": "^0.9.1",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.12",
+    "vue-tsc": "^3.2.8"
+  }
+}

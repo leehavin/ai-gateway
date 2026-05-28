@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DataChat.Core\DataChat.Core.csproj" />
+    <ProjectReference Include="..\DataChat.Infrastructure\DataChat.Infrastructure.csproj" />
+    <ProjectReference Include="..\DataChat.Providers\DataChat.Providers.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="domains.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

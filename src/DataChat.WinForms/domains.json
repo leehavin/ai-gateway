@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "defaults": {
+    "dbgptBaseUrl": "http://42.193.110.76:5670",
+    "timeoutSeconds": 120,
+    "maxHistoryTurns": 20
+  },
+  "domains": [
+    {
+      "id": "patent",
+      "displayName": "专利助手（DB-GPT）",
+      "chatMode": "DbGptApp",
+      "provider": "dbgpt",
+      "model": "deepseek-ai/DeepSeek-V3",
+      "placeholder": "@智能体，可对他说今天新登记的官文有多少？",
+      "quickPrompts": [
+        "今年新申请案件授权率",
+        "智能客服",
+        "客户回款情况"
+      ],
+      "systemPrompt": "你是专利业务管理系统的智能助手。",
+      "dbgpt": {
+        "chatMode": "chat_normal"
+      }
+    },
+    {
+      "id": "legal",
+      "displayName": "法务问答（DB-GPT）",
+      "chatMode": "DbGptApp",
+      "provider": "dbgpt",
+      "model": "deepseek-ai/DeepSeek-V3",
+      "systemPrompt": "你是企业法务助手。",
+      "dbgpt": {
+        "chatMode": "chat_normal"
+      }
+    },
+    {
+      "id": "data-query",
+      "displayName": "数据问数 (DB-GPT)",
+      "chatMode": "DbGptData",
+      "provider": "dbgpt",
+      "model": "deepseek-ai/DeepSeek-V3",
+      "quickPrompts": [
+        "Walmart_Sales 表有多少行？",
+        "按州统计销售总额前5名"
+      ],
+      "dbgpt": {
+        "chatMode": "chat_data",
+        "datasourceId": "Walmart_Sales"
+      }
+    },
+    {
+      "id": "finance-app",
+      "displayName": "财务分析 (DB-GPT)",
+      "chatMode": "DbGptApp",
+      "provider": "dbgpt",
+      "model": "deepseek-ai/DeepSeek-V3",
+      "dbgpt": {
+        "chatMode": "chat_normal"
+      }
+    }
+  ]
+}

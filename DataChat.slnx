@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="src/DataChat.Core/DataChat.Core.csproj" />
+  <Project Path="src/DataChat.Application/DataChat.Application.csproj" />
+  <Project Path="src/DataChat.Infrastructure/DataChat.Infrastructure.csproj" />
+  <Project Path="src/DataChat.Providers/DataChat.Providers.csproj" />
+  <Project Path="src/DataChat.WinForms/DataChat.WinForms.csproj" />
+  <Project Path="src/DataChat.Gateway/DataChat.Gateway.csproj" />
+</Solution>

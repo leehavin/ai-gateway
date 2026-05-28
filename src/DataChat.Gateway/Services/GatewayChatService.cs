@@ -1,0 +1,135 @@
+using DataChat.Core.Chat;
+using DataChat.Core.Configuration;
+using DataChat.Core.Entities;
+using DataChat.Gateway.Configuration;
+using DataChat.Gateway.Models;
+using Microsoft.Extensions.Options;
+
+namespace DataChat.Gateway.Services;
+
+public sealed class GatewayChatService
+{
+    private readonly ChatOrchestrator _orchestrator;
+    private readonly DomainsConfiguration _domains;
+    private readonly GatewayOptions _options;
+    private readonly FileStorageService _files;
+    private readonly ILogger<GatewayChatService> _logger;
+
+    public GatewayChatService(
+        ChatOrchestrator orchestrator,
+        DomainsConfiguration domains,
+        IOptions<GatewayOptions> options,
+        FileStorageService files,
+        ILogger<GatewayChatService> logger)
+    {
+        _orchestrator = orchestrator;
+        _domains = domains;
+        _options = options.Value;
+        _files = files;
+        _logger = logger;
+    }
+
+    public DomainProfile? ResolveDomain(string domainId) =>
+        _domains.Domains.FirstOrDefault(d => string.Equals(d.Id, domainId, StringComparison.OrdinalIgnoreCase));
+
+    public string? ValidateRequest(ChatStreamRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Domain))
+            return "domain 不能为空。";
+
+        var hasText = !string.IsNullOrWhiteSpace(request.Message);
+        var hasFiles = request.Attachments is { Count: > 0 };
+        if (!hasText && !hasFiles)
+            return "message 或 attachments 至少提供一项。";
+
+        if (hasFiles)
+        {
+            foreach (var att in request.Attachments!)
+            {
+                if (string.IsNullOrWhiteSpace(att.FileId))
+                    return "attachments.fileId 不能为空。";
+                if (_files.Get(att.FileId) is null)
+                    return "附件不存在或已过期: " + att.FileId;
+            }
+        }
+
+        var composed = ComposeUserMessage(request);
+        if (composed.Length > _options.MaxMessageLength)
+            return $"message 超过最大长度 {_options.MaxMessageLength}。";
+        if (ResolveDomain(request.Domain) is null)
+            return "未知领域: " + request.Domain;
+        return null;
+    }
+
+    public ChatContext BuildContext(ChatStreamRequest request, DomainProfile domain)
+    {
+        var userMessage = ComposeUserMessage(request);
+        var session = new ChatSession
+        {
+            Id = string.IsNullOrWhiteSpace(request.SessionId) ? Guid.NewGuid().ToString("N") : request.SessionId,
+            Title = domain.DisplayName,
+            DomainId = domain.Id,
+            ChatMode = domain.ChatMode,
+            Model = domain.Model,
+            ResourceId = domain.Dbgpt?.AppId ?? domain.Dbgpt?.DatasourceId,
+            CreatedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        };
+
+        var maxTurns = _domains.Defaults.MaxHistoryTurns > 0 ? _domains.Defaults.MaxHistoryTurns : 20;
+        var history = TrimHistory(request.Messages ?? [], userMessage, maxTurns);
+
+        return new ChatContext
+        {
+            Session = session,
+            Domain = domain,
+            History = history,
+            UserMessage = userMessage
+        };
+    }
+
+    private string ComposeUserMessage(ChatStreamRequest request) =>
+        AttachmentMessageComposer.Compose(request.Message ?? "", request.Attachments, _files);
+
+    public async IAsyncEnumerable<ChatChunk> StreamAsync(
+        ChatContext context,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        _logger.LogInformation(
+            "Chat stream domain={Domain} session={SessionId} mock={UseMock}",
+            context.Domain.Id, context.Session.Id, _options.UseMock);
+
+        await foreach (var chunk in _orchestrator.SendAsync(context, cancellationToken))
+            yield return chunk;
+    }
+
+    private static List<ChatMessage> TrimHistory(
+        IReadOnlyList<ChatStreamMessage> messages,
+        string currentUserMessage,
+        int maxTurns)
+    {
+        var list = messages
+            .Where(m => m.Role is "user" or "assistant" or "system")
+            .Select((m, i) => new ChatMessage
+            {
+                Id = "h-" + i,
+                SessionId = "remote",
+                Role = m.Role,
+                Content = m.Content ?? "",
+                CreatedAt = i
+            })
+            .ToList();
+
+        // 当前轮次由 UserMessage 承载（含附件拼接），客户端 messages 末尾可能含展示用 user 文本
+        if (list.Count > 0 && list[^1].Role == "user")
+            list = list.Take(list.Count - 1).ToList();
+
+        var system = list.Where(m => m.Role == "system").ToList();
+        var dialogue = list.Where(m => m.Role is "user" or "assistant").TakeLast(maxTurns * 2).ToList();
+
+        var merged = new List<ChatMessage>();
+        merged.AddRange(system.Take(1));
+        merged.AddRange(dialogue);
+        return merged;
+    }
+}
