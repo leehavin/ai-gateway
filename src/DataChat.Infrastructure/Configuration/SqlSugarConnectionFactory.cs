@@ -8,7 +8,10 @@ public static class SqlSugarConnectionFactory
     public static ISqlSugarClient Create(DataChatDbOptions options, string baseDirectory)
     {
         var (connectionString, dbType) = Resolve(options, baseDirectory);
-        return new SqlSugarClient(new ConnectionConfig
+        // 使用 SqlSugarScope 而非 SqlSugarClient：
+        // 后者非线程安全，作为单例被多个请求/异步上下文并发复用同一连接会抛
+        // “BeginExecuteReader 要求已打开且可用的 Connection”。Scope 按异步上下文隔离连接。
+        return new SqlSugarScope(new ConnectionConfig
         {
             ConnectionString = connectionString,
             DbType = dbType,

@@ -191,7 +191,6 @@ public sealed class GatewaySessionService
         };
         await _repository.SaveSessionAsync(session, cancellationToken);
 
-        var extras = BuildExtrasJson(thinkingContent, citations);
         await _repository.AppendMessageAsync(new ChatMessage
         {
             Id = Guid.NewGuid().ToString("N"),
@@ -201,15 +200,19 @@ public sealed class GatewaySessionService
             CreatedAt = now
         }, cancellationToken);
 
-        await _repository.AppendMessageAsync(new ChatMessage
+        if (!string.IsNullOrEmpty(assistantContent))
         {
-            Id = Guid.NewGuid().ToString("N"),
-            SessionId = sessionId,
-            Role = "assistant",
-            Content = assistantContent,
-            ExtrasJson = extras,
-            CreatedAt = now + 1
-        }, cancellationToken);
+            var extras = BuildExtrasJson(thinkingContent, citations);
+            await _repository.AppendMessageAsync(new ChatMessage
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                SessionId = sessionId,
+                Role = "assistant",
+                Content = assistantContent,
+                ExtrasJson = extras,
+                CreatedAt = now + 1
+            }, cancellationToken);
+        }
     }
 
     private static string? BuildExtrasJson(string? thinking, IReadOnlyList<ChatCitation>? citations)

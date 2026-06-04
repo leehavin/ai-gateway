@@ -133,26 +133,32 @@ public sealed class GatewayChatService
         var text = new System.Text.StringBuilder();
         var thinking = new System.Text.StringBuilder();
         IReadOnlyList<ChatCitation>? citations = null;
-        var hadError = false;
 
-        await foreach (var chunk in StreamAsync(context, cancellationToken))
+        // try/finally 确保即使消费者提前 break（如 SseResponseWriter 遇到 error chunk），
+        // DisposeAsync 触发时 finally 仍会执行持久化。
+        try
         {
-            if (chunk.TextDelta is not null) text.Append(chunk.TextDelta);
-            if (chunk.ThinkingDelta is not null) thinking.Append(chunk.ThinkingDelta);
-            if (chunk.Citations is not null) citations = chunk.Citations;
-            if (chunk.Error is not null) hadError = true;
-            yield return chunk;
+            await foreach (var chunk in StreamAsync(context, cancellationToken))
+            {
+                if (chunk.TextDelta is not null) text.Append(chunk.TextDelta);
+                if (chunk.ThinkingDelta is not null) thinking.Append(chunk.ThinkingDelta);
+                if (chunk.Citations is not null) citations = chunk.Citations;
+                yield return chunk;
+            }
         }
-
-        if (!hadError && (text.Length > 0 || thinking.Length > 0))
+        finally
         {
-            await _sessions.PersistStreamTurnAsync(
-                request,
-                context.UserMessage,
-                text.ToString(),
-                thinking.Length > 0 ? thinking.ToString() : null,
-                citations,
-                cancellationToken);
+            if (!string.IsNullOrWhiteSpace(context.UserMessage))
+            {
+                // CancellationToken.None：客户端断开不应中断持久化
+                await _sessions.PersistStreamTurnAsync(
+                    request,
+                    context.UserMessage,
+                    text.ToString(),
+                    thinking.Length > 0 ? thinking.ToString() : null,
+                    citations,
+                    CancellationToken.None);
+            }
         }
     }
 

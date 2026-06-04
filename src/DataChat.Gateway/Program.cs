@@ -1,9 +1,43 @@
 using DataChat.Gateway.Configuration;
 using DataChat.Gateway.Extensions;
 using Microsoft.OpenApi.Models;
+using Serilog;
+using Serilog.Events;
 
+// 启动早期日志：捕获 Host 构建期间（DI/配置）异常，应用配置就绪后再替换为正式 Logger。
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
+
+try
+{
+    Log.Information("DataChat Gateway 正在启动…");
+    RunApp(args);
+    return 0;
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "DataChat Gateway 启动失败，进程终止。");
+    return 1;
+}
+finally
+{
+    Log.CloseAndFlush();
+}
+
+static void RunApp(string[] args)
+{
 var builder = WebApplication.CreateBuilder(args);
-builder.Configuration.AddJsonFile("appsettings.Development.local.json", optional: true, reloadOnChange: true);
+
+// 从配置（appsettings.json 的 Serilog 节）读取日志设置，并补充运行时上下文 enrich。
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext()
+    .Enrich.WithMachineName()
+    .Enrich.WithThreadId()
+    .Enrich.WithProperty("Application", "DataChat.Gateway"));
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -57,6 +91,24 @@ builder.Services.AddDataChatGateway(builder.Configuration);
 
 var app = builder.Build();
 
+// 结构化请求日志：每个 HTTP 请求一行，含方法/路径/状态码/耗时。
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate =
+        "HTTP {RequestMethod} {RequestPath} 响应 {StatusCode}，耗时 {Elapsed:0.0} ms";
+    options.GetLevel = (httpContext, elapsed, ex) =>
+        ex is not null || httpContext.Response.StatusCode >= 500
+            ? LogEventLevel.Error
+            : httpContext.Response.StatusCode >= 400
+                ? LogEventLevel.Warning
+                : LogEventLevel.Information;
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        diagnosticContext.Set("ClientIP", httpContext.Connection.RemoteIpAddress?.ToString());
+        diagnosticContext.Set("UserAgent", httpContext.Request.Headers.UserAgent.ToString());
+    };
+});
+
 if (gatewayOptions.EnableSwagger || app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -68,3 +120,4 @@ app.UseDataChatGateway();
 app.MapControllers();
 
 app.Run();
+}
