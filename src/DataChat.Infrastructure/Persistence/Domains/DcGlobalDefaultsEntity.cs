@@ -10,15 +10,18 @@ public sealed class DcGlobalDefaultsEntity
 
     public int Version { get; set; } = 1;
 
-    [SugarColumn(Length = 512, IsNullable = false)]
+    [SugarColumn(ColumnName = "dbgpt_base_url", Length = 512, IsNullable = false)]
     public string DbgptBaseUrl { get; set; } = "";
 
-    [SugarColumn(Length = 128, IsNullable = false)]
+    [SugarColumn(ColumnName = "coze_endpoint", Length = 128, IsNullable = false)]
     public string CozeEndpoint { get; set; } = "api.coze.cn";
 
+    [SugarColumn(ColumnName = "timeout_seconds")]
     public int TimeoutSeconds { get; set; } = 120;
 
+    [SugarColumn(ColumnName = "max_history_turns")]
     public int MaxHistoryTurns { get; set; } = 20;
 
+    [SugarColumn(ColumnName = "updated_at")]
     public long UpdatedAt { get; set; }
 }
