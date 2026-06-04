@@ -22,7 +22,9 @@
 
 `GET /v1/domains` — 嵌入组件可拉取快捷问题与占位符
 
-`GET /v1/domains/{domainId}`
+`POST /v1/domains/reload` — 改库后热重载（需 Token）
+
+`GET /v1/coze/bots` — 已配置的 Coze 领域 Bot 列表
 
 ## 流式对话
 
@@ -41,29 +43,56 @@
   "messages": [
     { "role": "user", "content": "..." },
     { "role": "assistant", "content": "..." }
-  ]
+  ],
+  "parameters": {
+    "temperature": 0.7,
+    "topP": 0.9,
+    "maxTokens": 4096
+  }
 }
 ```
 
-SSE 事件：
+可选 `parameters` 会映射到 `ChatGenerationParameters`；自定义 HTTP 领域在请求体中收到 `parameters` 对象（DB-GPT / Coze 路径是否生效取决于对应 Provider）。
 
-- `data: {"delta":"片段"}`
+SSE 事件（推荐带 `type` 字段；仍兼容 `{"delta":"..."}`）：
+
+- `data: {"type":"thinking","delta":"思考片段"}`
+- `data: {"type":"delta","delta":"正文片段"}`
+- `data: {"type":"citations","citations":[{"title":"...","url":"...","snippet":"..."}]}`
 - `data: {"error":"..."}`
 - `data: [DONE]`
 
-## DB-GPT 资源代理（对齐官方 v2）
+流式结束后若 `Gateway:PersistSessions=true`，会将本轮 user/assistant 写入 SQLite。
 
-| 方法 | Gateway 路径 | 官方路径 |
-|------|--------------|----------|
-| GET | `/v1/dbgpt/ping` | 探测 `/docs` |
-| GET | `/v1/dbgpt/apps` | `GET /api/v2/serve/apps` |
-| GET | `/v1/dbgpt/apps/{id}` | `GET /api/v2/serve/apps/{id}` |
-| GET | `/v1/dbgpt/datasources` | `GET /api/v2/serve/datasources` |
-| GET | `/v1/dbgpt/datasources/{id}` | `GET /api/v2/serve/datasources/{id}` |
-| GET | `/v1/dbgpt/knowledge/spaces` | `GET /api/v2/serve/knowledge/spaces` |
-| POST/PUT/DELETE | `/v1/dbgpt/proxy/{path}` | 透传 `/api/v2/{path}` |
+## 会话同步（Web 可选）
 
-与官方全量 API 的对照表见 [DB-GPT-API-Coverage.md](DB-GPT-API-Coverage.md)。
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/v1/sessions?domain={id}` | 会话列表 |
+| GET | `/v1/sessions/{id}` | 会话详情含消息 |
+| POST | `/v1/sessions` | 创建空会话 |
+| PUT | `/v1/sessions/{id}` | 全量同步消息 |
+| DELETE | `/v1/sessions/{id}` | 删除 |
+
+需 `Gateway:EnableSessionApi=true`，数据文件见 `Gateway:DatabasePath`（默认 `data/datachat.db`）。
+
+## 消息反馈
+
+`POST /v1/feedback`
+
+```json
+{
+  "sessionId": "uuid",
+  "messageId": "uuid",
+  "domain": "patent",
+  "rating": "up",
+  "comment": "可选备注"
+}
+```
+
+`rating` 为 `up` 或 `down`。记录追加到 `data/feedback.jsonl`（路径相对 Gateway 工作目录）。
+
+DB-GPT 连通性由 `GET /v1/health` 的 `dbgptReachable` 探测；对话走 `POST /v1/chat/stream`（`provider=dbgpt`）。管理类 serve API 请直连 DB-GPT 或后续管理后台。
 
 ## 配置
 
@@ -74,6 +103,13 @@ SSE 事件：
 | `Gateway:AllowedOrigins` | CORS，生产改为业务域名 |
 | `ApiKeys:dbgpt-main` | DB-GPT 服务端密钥 |
 | `ApiKeys:patent-key` | 专利领域自研服务密钥 |
-| `domains.json` | 领域路由与 endpoint |
+| `domains.json` | 领域路由（`DomainsSource=File` 时） |
+| `DomainsSource` | `File` 或 `Database`（Sqlite 表 `dc_domain`） |
+| `Gateway:DatabasePath` | 会话 + 领域配置共用 SQLite 路径 |
+
+领域数据库说明见 [Domains-Database.md](Domains-Database.md)。
+
+| `Gateway:PersistSessions` | 流式后写入会话 |
+| `Gateway:EnableSessionApi` | 是否开放 `/v1/sessions` |
 
 生产部署：设置 `ASPNETCORE_ENVIRONMENT=Production`，`UseMock=false`，填写真实 `ApiKeys`。

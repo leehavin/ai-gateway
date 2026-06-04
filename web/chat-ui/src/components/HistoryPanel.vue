@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { BRAND } from '../constants/brand'
 import { formatHistoryTime } from '../utils/session'
 import type { HistoryGroup } from '../composables/useHistory'
+import type { SessionMeta } from '../types'
 
 defineProps<{
   expanded: boolean
@@ -14,9 +16,29 @@ const emit = defineEmits<{
   'update:searchKey': [value: string]
   select: [id: string]
   delete: [id: string]
+  rename: [id: string, title: string]
+  pin: [id: string]
   newChat: []
   collapse: []
 }>()
+
+const renamingId = ref('')
+const renameDraft = ref('')
+
+function startRename(item: SessionMeta) {
+  renamingId.value = item.id
+  renameDraft.value = item.title
+}
+
+function commitRename(id: string) {
+  const title = renameDraft.value.trim()
+  if (title) emit('rename', id, title)
+  renamingId.value = ''
+}
+
+function cancelRename() {
+  renamingId.value = ''
+}
 </script>
 
 <template>
@@ -33,7 +55,13 @@ const emit = defineEmits<{
         <span class="brand-name">{{ BRAND.name }}</span>
         <span class="brand-tag">{{ BRAND.tagline }}</span>
       </div>
-      <button type="button" class="collapse-btn" title="收起侧栏" @click="emit('collapse')">
+      <button
+        type="button"
+        class="collapse-btn"
+        title="收起侧栏（可点左侧「历史」或顶栏菜单再次展开）"
+        aria-label="收起对话历史侧栏"
+        @click="emit('collapse')"
+      >
         <i class="icon-collapse-to-left"></i>
       </button>
     </div>
@@ -59,29 +87,69 @@ const emit = defineEmits<{
       <template v-if="groups.length">
         <section v-for="(group, gi) in groups" :key="gi" class="history-group">
           <h4 class="group-title">{{ group.title }}</h4>
-          <button
+          <div
             v-for="item in group.items"
             :key="item.id"
-            type="button"
-            :class="['history-item', item.id === activeId && 'active']"
-            @click="emit('select', item.id)"
+            :class="['history-item-wrap', item.id === activeId && 'active']"
           >
-            <div class="item-top">
-              <i class="icon-comment item-icon"></i>
-              <span class="item-title">{{ item.title }}</span>
-            </div>
-            <p v-if="item.preview" class="item-preview">{{ item.preview }}</p>
-            <div class="item-foot">
-              <span class="item-time">{{ formatHistoryTime(item.updatedAt) }}</span>
-              <span
-                class="item-delete"
-                title="删除会话"
-                @click.stop="emit('delete', item.id)"
-              >
-                <i class="icon-delete"></i>
-              </span>
-            </div>
-          </button>
+            <button
+              type="button"
+              class="history-item"
+              @click="emit('select', item.id)"
+              @dblclick.stop="startRename(item)"
+            >
+              <div class="item-header">
+                <div class="item-top">
+                  <i
+                    :class="['item-icon', item.pinned ? 'icon-star' : 'icon-comment']"
+                    :style="item.pinned ? { color: '#d97706' } : undefined"
+                  />
+                  <input
+                    v-if="renamingId === item.id"
+                    v-model="renameDraft"
+                    class="item-rename-input"
+                    type="text"
+                    maxlength="80"
+                    @click.stop
+                    @keydown.enter.prevent="commitRename(item.id)"
+                    @keydown.esc.prevent="cancelRename"
+                    @blur="commitRename(item.id)"
+                  />
+                  <span v-else class="item-title" :title="item.title">{{ item.title }}</span>
+                </div>
+                <div class="item-actions" @click.stop>
+                  <button
+                    type="button"
+                    class="item-action"
+                    :title="item.pinned ? '取消置顶' : '置顶'"
+                    @click.stop="emit('pin', item.id)"
+                  >
+                    <i :class="item.pinned ? 'icon-star' : 'icon-priority'" />
+                  </button>
+                  <button
+                    type="button"
+                    class="item-action"
+                    title="重命名（或双击标题）"
+                    @click.stop="startRename(item)"
+                  >
+                    <i class="icon-info-o" />
+                  </button>
+                  <button
+                    type="button"
+                    class="item-action item-action--danger"
+                    title="删除会话"
+                    @click.stop="emit('delete', item.id)"
+                  >
+                    <i class="icon-delete" />
+                  </button>
+                </div>
+              </div>
+              <p v-if="item.preview" class="item-preview">{{ item.preview }}</p>
+              <div class="item-foot">
+                <span class="item-time">{{ formatHistoryTime(item.updatedAt) }}</span>
+              </div>
+            </button>
+          </div>
         </section>
       </template>
       <div v-else class="history-empty">
@@ -257,13 +325,22 @@ const emit = defineEmits<{
   color: var(--dc-text-muted);
 }
 
+.history-item-wrap {
+  margin-bottom: 6px;
+  border-radius: var(--dc-radius-md);
+}
+
+.history-item-wrap.active .history-item {
+  border-color: rgba(94, 124, 224, 0.35);
+  box-shadow: 0 4px 16px rgba(94, 124, 224, 0.12);
+}
+
 .history-item {
   display: flex;
   flex-direction: column;
   gap: 6px;
   width: 100%;
   padding: 12px 12px 10px;
-  margin-bottom: 6px;
   border: 1px solid transparent;
   border-radius: var(--dc-radius-md);
   background: rgba(255, 255, 255, 0.65);
@@ -275,22 +352,24 @@ const emit = defineEmits<{
     box-shadow 0.15s;
 }
 
-.history-item:hover {
+.history-item-wrap:hover .history-item {
   background: #fff;
   border-color: var(--dc-border);
   box-shadow: var(--dc-shadow-sm);
 }
 
-.history-item.active {
-  background: #fff;
-  border-color: rgba(94, 124, 224, 0.35);
-  box-shadow: 0 4px 16px rgba(94, 124, 224, 0.12);
+.item-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
 }
 
 .item-top {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
   min-width: 0;
 }
 
@@ -312,6 +391,17 @@ const emit = defineEmits<{
   white-space: nowrap;
 }
 
+.item-rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--dc-brand);
+  border-radius: var(--dc-radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+}
+
 .item-preview {
   margin: 0;
   padding-left: 22px;
@@ -325,9 +415,6 @@ const emit = defineEmits<{
 }
 
 .item-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   padding-left: 22px;
 }
 
@@ -336,26 +423,50 @@ const emit = defineEmits<{
   color: var(--dc-text-muted);
 }
 
-.item-delete {
+.item-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    max-width 0.2s ease,
+    opacity 0.12s ease;
+}
+
+.history-item-wrap:hover .item-actions,
+.history-item-wrap.active .item-actions,
+.history-item-wrap:focus-within .item-actions {
+  max-width: 88px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.item-action {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 24px;
   height: 24px;
+  padding: 0;
+  border: none;
   border-radius: 6px;
+  background: rgba(255, 255, 255, 0.95);
   color: var(--dc-text-muted);
-  opacity: 0;
-  transition: opacity 0.12s, background 0.12s, color 0.12s;
+  cursor: pointer;
+  box-shadow: var(--dc-shadow-sm);
 }
 
-.history-item:hover .item-delete,
-.history-item.active .item-delete {
-  opacity: 1;
+.item-action:hover {
+  color: var(--dc-brand);
+  background: var(--dc-brand-soft);
 }
 
-.item-delete:hover {
-  background: var(--dc-error-bg);
+.item-action--danger:hover {
   color: var(--dc-error);
+  background: var(--dc-error-bg);
 }
 
 .history-empty {

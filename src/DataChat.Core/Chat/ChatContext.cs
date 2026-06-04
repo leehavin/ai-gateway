@@ -9,4 +9,5 @@ public sealed class ChatContext
     public required DomainProfile Domain { get; init; }
     public required IReadOnlyList<ChatMessage> History { get; init; }
     public required string UserMessage { get; init; }
+    public ChatGenerationParameters? Parameters { get; init; }
 }

@@ -2,7 +2,7 @@
   "name": "datachat-chat-ui",
   "private": true,
   "version": "1.0.0",
-  "description": "DataChat Web 客户端（Vue 3 + MateChat + Gateway SSE）",
+  "description": "DataChat Web 客户端（Vue 3 + 自研对话 UI + Gateway SSE）",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,11 +11,14 @@
   },
   "dependencies": {
     "@devui-design/icons": "^1.4.0",
-    "@matechat/core": "^1.14.0",
+    "dompurify": "^3.3.2",
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.1.1",
     "vue": "^3.5.34",
     "vue-devui": "^1.6.36"
   },
   "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
     "@types/node": "^24.12.3",
     "@vitejs/plugin-vue": "^6.0.6",
     "@vue/tsconfig": "^0.9.1",

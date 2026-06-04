@@ -1,7 +1,7 @@
-using DataChat.Application;
 using DataChat.Core.Abstractions;
 using DataChat.Core.Configuration;
 using DataChat.Infrastructure.Configuration;
+using Microsoft.Extensions.Configuration;
 using DataChat.Infrastructure.Persistence;
 using DataChat.Infrastructure.Security;
 using DataChat.Providers;
@@ -33,22 +33,37 @@ static class Program
     private static IHost BuildHost()
     {
         var baseDir = AppContext.BaseDirectory;
-        var domainsPath = Path.Combine(baseDir, "domains.json");
-        var domains = DomainsConfigurationLoader.Load(domainsPath);
-        var dbgptUrl = domains.Defaults.DbgptBaseUrl;
 
         return Host.CreateDefaultBuilder()
-            .ConfigureServices(services =>
+            .ConfigureAppConfiguration(cfg =>
             {
-                services.AddSingleton(domains);
-                services.AddSingleton<IApiKeyStore, FileApiKeyStore>();
-                services.AddSingleton<IConversationRepository>(sp =>
+                cfg.AddJsonFile("appsettings.Development.local.json", optional: true, reloadOnChange: true);
+            })
+            .ConfigureServices((context, services) =>
+            {
+                var config = context.Configuration;
+                var dbOptions = DataChatDatabaseExtensions.ReadDbOptions(config);
+                var domainsSetup = new DomainsSetupOptions
                 {
-                    var dbPath = Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                        "DataChat", "chat.db");
-                    return new SqliteConversationRepository(dbPath);
-                });
+                    Source = DomainsSourceParser.Parse(config["DomainsSource"] ?? "File"),
+                    DomainsFile = config["DomainsFile"] ?? "domains.json",
+                    DatabasePath = config["DatabasePath"] ?? dbOptions.DatabasePath,
+                    SeedFromFileWhenEmpty = !string.Equals(
+                        config["SeedDomainsFromFileWhenEmpty"],
+                        "false",
+                        StringComparison.OrdinalIgnoreCase)
+                };
+                services.AddSingleton<IApiKeyStore, FileApiKeyStore>();
+                var sqlSugar = DataChatDatabaseExtensions.AddDataChatDatabase(
+                    services,
+                    dbOptions,
+                    domainsSetup,
+                    baseDir);
+                var domains = DomainsConfigurationRegistrar.RegisterDomains(
+                    services,
+                    domainsSetup,
+                    baseDir,
+                    sqlSugar);
                 services.AddDataChatProviders(domains);
                 services.AddSingleton<ChatService>();
                 services.AddSingleton<MainForm>();
@@ -81,8 +96,8 @@ internal sealed class DatabaseInitializer : IHostedService
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        if (_repository is SqliteConversationRepository sqlite)
-            await sqlite.InitializeAsync(cancellationToken);
+        if (_repository is IDatabaseInitializer init)
+            await init.InitializeAsync(cancellationToken);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

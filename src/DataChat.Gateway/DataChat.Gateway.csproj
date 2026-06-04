@@ -12,9 +12,4 @@
     <ProjectReference Include="..\DataChat.Infrastructure\DataChat.Infrastructure.csproj" />
     <ProjectReference Include="..\DataChat.Providers\DataChat.Providers.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <None Update="domains.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
 </Project>

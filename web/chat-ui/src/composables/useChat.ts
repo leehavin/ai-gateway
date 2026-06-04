@@ -1,7 +1,16 @@
-import { computed, ref, watch, type Ref } from 'vue'
+import { computed, onMounted, ref, watch, type Ref } from 'vue'
+import { submitMessageFeedback } from '../api/feedback'
 import { buildHistory, streamChat } from '../api/gateway'
+import { normalizeChatParams, type ChatGenerationParameters } from '../types/chatParams'
+import { newSessionId } from '../utils/session'
+import type { ChatAttachmentRef } from '../types/attachments'
 import type { ChatMessage, ChatSession, DomainItem } from '../types'
-import { resolveActiveSession, saveSession, upsertSessionMeta } from '../utils/session'
+import { copyToClipboard } from '../utils/clipboard'
+import {
+  normalizeOutgoingMessage,
+  stripAttachmentNote,
+  toApiUserContent,
+} from '../utils/composerTokens'
 import type { useAttachments } from './useAttachments'
 import type { useHistory } from './useHistory'
 
@@ -16,28 +25,55 @@ function uid() {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
+function emptySession(): ChatSession {
+  return { id: newSessionId(), messages: [] }
+}
+
 export function useChat(
   domainId: Ref<string>,
   activeDomain: Ref<DomainItem | undefined>,
   history: ReturnType<typeof useHistory>,
-  attachments: ReturnType<typeof useAttachments>
+  attachments: ReturnType<typeof useAttachments>,
+  chatParams: Ref<ChatGenerationParameters>
 ) {
-  const session = ref<ChatSession>(resolveActiveSession(domainId.value))
+  const session = ref<ChatSession>(emptySession())
   const inputValue = ref('')
   const sending = ref(false)
-  const startPage = ref(session.value.messages.length === 0)
-  let abortCtrl: AbortController | null = null
+  const editingUserId = ref<string | null>(null)
+  const toast = ref('')
 
-  history.activeId.value = session.value.id
+  let toastTimer: ReturnType<typeof setTimeout> | null = null
+
+  function showToast(message: string) {
+    toast.value = message
+    if (toastTimer) clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => {
+      toast.value = ''
+      toastTimer = null
+    }, 2200)
+  }
+
+  const hasHistory = computed(() => history.historyList.value.length > 0)
+
+  /** 有历史记录且当前会话为空时显示欢迎页 */
+  const startPage = ref(false)
+
+  let abortCtrl: AbortController | null = null
+  const isEditing = computed(() => !!editingUserId.value)
+
+  onMounted(() => {
+    if (!startPage.value) composerFocusNonce.value++
+  })
 
   const userName = ref('您')
   const greetText = computed(() => `${userName.value}，${timeGreeting()}好！`)
 
-  const description = computed(() => [
-    `当前领域：${activeDomain.value?.displayName ?? domainId.value}`,
-    'DataChat 统一网关接入 DB-GPT、Coze 与自研领域服务。',
-    'AI 生成内容可能有误，请谨慎甄别使用。',
-  ])
+  const description = computed(() =>
+    [
+      activeDomain.value?.displayName ? `当前领域：${activeDomain.value.displayName}` : null,
+      activeDomain.value?.description ?? null,
+    ].filter((s): s is string => s !== null && s !== '')
+  )
 
   const introPrompt = computed(() => {
     const list = activeDomain.value?.quickPrompts ?? []
@@ -62,93 +98,110 @@ export function useChat(
     }))
   )
 
-  const placeholder = computed(
-    () => activeDomain.value?.placeholder || '@智能体，输入您的问题…'
-  )
+  const placeholder = computed(() => {
+    if (editingUserId.value) return '修改后发送，将从此处重新生成回复'
+    if (activeDomain.value?.placeholder) return activeDomain.value.placeholder
+    if (activeDomain.value?.provider === 'coze') {
+      return '输入问题，@ 切换 Bot；/ 打开 Coze 菜单'
+    }
+    return '输入问题，@ 可切换智能体'
+  })
 
-  function applySession(next: ChatSession) {
+  const composerFocusNonce = ref(0)
+
+  function applySession(
+    next: ChatSession,
+    options?: { keepInput?: boolean; enterCompose?: boolean }
+  ) {
     abortCtrl?.abort()
     abortCtrl = null
     sending.value = false
+    editingUserId.value = null
     session.value = next
     history.activeId.value = next.id
-    startPage.value = next.messages.length === 0
-    inputValue.value = ''
+    startPage.value = options?.enterCompose
+      ? false
+      : next.messages.length === 0 && hasHistory.value
+    if (!options?.keepInput) inputValue.value = ''
     attachments.clearAttachments()
+    if (options?.enterCompose) composerFocusNonce.value++
   }
 
-  function persist() {
-    saveSession(domainId.value, session.value)
-    if (session.value.messages.length > 0) {
-      upsertSessionMeta(domainId.value, session.value)
-      history.refresh()
+  const preserveInputNextDomainSwitch = ref(false)
+
+  /** 首次加载历史列表后自动打开最近一条会话 */
+  let historyInitialized = false
+  watch(history.historyList, async (list) => {
+    if (historyInitialized) return
+    historyInitialized = true
+    if (list.length > 0) {
+      const loaded = await history.selectSession(list[0].id)
+      applySession(loaded)
     }
-  }
-
-  watch(domainId, () => {
-    history.refresh()
-    applySession(resolveActiveSession(domainId.value))
   })
 
-  function newConversation() {
-    applySession(history.startNewSession())
-  }
-
-  function loadSessionById(id: string) {
-    applySession(history.selectSession(id))
-  }
-
-  async function onSubmit(text: string) {
-    const msg = (text || inputValue.value).trim()
-    const files = attachments.readyAttachments.value
-    if ((!msg && !files.length) || sending.value || attachments.hasUploading.value) return
-    const displayContent = (msg || '请根据附件回答') + attachments.formatAttachmentNote(files)
-    inputValue.value = ''
+  /** 切换领域时重置，让上面的 watch 重新触发初始加载 */
+  watch(domainId, () => {
+    historyInitialized = false
+    session.value = emptySession()
     startPage.value = false
-    history.closeAsideIfNarrow()
-    sending.value = true
+    if (!preserveInputNextDomainSwitch.value) inputValue.value = ''
+    preserveInputNextDomainSwitch.value = false
+  })
 
-    session.value.messages.push({
-      id: uid(),
-      role: 'user',
-      content: displayContent,
-      attachments: files.length ? [...files] : undefined,
-    })
-    attachments.clearAttachments()
-    const assistant: ChatMessage = {
-      id: uid(),
-      role: 'assistant',
-      content: '',
-      loading: true,
-    }
-    session.value.messages.push(assistant)
-    persist()
+  function markPreserveInputOnNextDomainSwitch() {
+    preserveInputNextDomainSwitch.value = true
+  }
+
+  async function loadSessionById(id: string) {
+    applySession(await history.selectSession(id))
+  }
+
+  function stopGenerating() {
+    abortCtrl?.abort()
+    abortCtrl = null
+    sending.value = false
+  }
+
+  function buildStreamHistory(apiUserText: string, excludeMessageId?: string) {
+    return buildHistory(
+      session.value.messages
+        .filter((m) => !m.loading && !m.error && m.id !== excludeMessageId)
+        .map((m) => ({ role: m.role, content: m.content })),
+      apiUserText,
+      toApiUserContent
+    )
+  }
+
+  async function runAssistantStream(
+    assistant: ChatMessage,
+    apiUserText: string,
+    files: ChatAttachmentRef[]
+  ) {
+    const historyMsgs = buildStreamHistory(apiUserText, assistant.id)
 
     abortCtrl = new AbortController()
-    const historyMsgs = buildHistory(
-      session.value.messages
-        .filter((m) => !m.loading && !m.error)
-        .map((m) => ({ role: m.role, content: m.content })),
-      displayContent
-    )
-
     try {
       await streamChat(
         {
           sessionId: session.value.id,
           domain: domainId.value,
-          message: msg || '请根据附件内容回答。',
+          message: apiUserText || '请根据附件内容回答。',
           messages: historyMsgs,
           attachments: files.length ? files : undefined,
+          parameters: normalizeChatParams(chatParams.value),
         },
-        (delta) => {
+        (ev) => {
           assistant.loading = false
-          assistant.content += delta
-          persist()
+          assistant.error = false
+          if (ev.text) assistant.content += ev.text
+          if (ev.thinking) assistant.thinking = (assistant.thinking ?? '') + ev.thinking
+          if (ev.citations?.length) assistant.citations = ev.citations
         },
         abortCtrl.signal
       )
       assistant.loading = false
+      assistant.error = false
     } catch (e) {
       assistant.loading = false
       if (e instanceof DOMException && e.name === 'AbortError') return
@@ -158,7 +211,146 @@ export function useChat(
     } finally {
       sending.value = false
       assistant.loading = false
-      persist()
+      abortCtrl = null
+      /* 流结束后服务端已自动持久化，刷新侧栏历史列表 */
+      void history.refresh()
+    }
+  }
+
+  async function streamAfterUserMessage(displayContent: string, files: ChatAttachmentRef[]) {
+    const assistant: ChatMessage = {
+      id: uid(),
+      role: 'assistant',
+      content: '',
+      thinking: '',
+      loading: true,
+    }
+    session.value.messages.push(assistant)
+    sending.value = true
+    const apiUserText = toApiUserContent(displayContent)
+    await runAssistantStream(assistant, apiUserText, files)
+  }
+
+  async function onSubmit(text: string) {
+    const raw = (text || inputValue.value).trim()
+    if (editingUserId.value) {
+      await editUserMessage(editingUserId.value, raw)
+      return
+    }
+
+    const msg = normalizeOutgoingMessage(raw)
+    const files = attachments.readyAttachments.value
+    if ((!msg && !files.length) || sending.value || attachments.hasUploading.value) return
+    const displayContent = (msg || '请根据附件回答') + attachments.formatAttachmentNote(files)
+    inputValue.value = ''
+    startPage.value = false
+    history.closeAsideIfNarrow()
+    sending.value = true
+
+    const userMsg: ChatMessage = {
+      id: uid(),
+      role: 'user',
+      content: displayContent,
+      attachments: files.length ? [...files] : undefined,
+    }
+    session.value.messages.push(userMsg)
+    attachments.clearAttachments()
+
+    await streamAfterUserMessage(displayContent, files)
+  }
+
+  function findUserBeforeAssistant(assistantId: string) {
+    const idx = session.value.messages.findIndex((m) => m.id === assistantId)
+    if (idx < 1) return null
+    const userMsg = session.value.messages[idx - 1]
+    return userMsg.role === 'user' ? { idx, userMsg } : null
+  }
+
+  async function regenerateAssistant(assistantId: string) {
+    if (sending.value) return
+    const pair = findUserBeforeAssistant(assistantId)
+    if (!pair) return
+    session.value.messages.splice(pair.idx + 1)
+    await streamAfterUserMessage(pair.userMsg.content, pair.userMsg.attachments ?? [])
+  }
+
+  /** @deprecated 使用 regenerateAssistant */
+  async function retryAssistant(assistantId: string) {
+    await regenerateAssistant(assistantId)
+  }
+
+  function startEditUserMessage(userId: string) {
+    if (sending.value) return
+    const msg = session.value.messages.find((m) => m.id === userId && m.role === 'user')
+    if (!msg) return
+    editingUserId.value = userId
+    inputValue.value = stripAttachmentNote(msg.content)
+    composerFocusNonce.value++
+  }
+
+  function cancelEditUserMessage() {
+    editingUserId.value = null
+    inputValue.value = ''
+  }
+
+  async function editUserMessage(userId: string, rawText: string) {
+    if (sending.value) return
+    const idx = session.value.messages.findIndex((m) => m.id === userId)
+    if (idx < 0 || session.value.messages[idx].role !== 'user') return
+
+    const msg = normalizeOutgoingMessage(rawText)
+    const prev = session.value.messages[idx]
+    const files = prev.attachments ?? []
+    if (!msg && !files.length) return
+
+    editingUserId.value = null
+    inputValue.value = ''
+    startPage.value = false
+
+    const displayContent = (msg || '请根据附件回答') + attachments.formatAttachmentNote(files)
+    prev.content = displayContent
+    session.value.messages.splice(idx + 1)
+
+    await streamAfterUserMessage(displayContent, files)
+  }
+
+  function newConversation() {
+    applySession(history.startNewSession(), { enterCompose: true })
+  }
+
+  async function copyMessage(messageId: string) {
+    const msg = session.value.messages.find((m) => m.id === messageId)
+    if (!msg?.content.trim()) return
+    const text = msg.role === 'user' ? stripAttachmentNote(msg.content) : msg.content
+    const ok = await copyToClipboard(text)
+    showToast(ok ? '已复制到剪贴板' : '复制失败')
+  }
+
+  function canRegenerateAssistant(msg: ChatMessage, index: number): boolean {
+    if (msg.role !== 'assistant' || sending.value || msg.loading) return false
+    if (index < 1) return false
+    return session.value.messages[index - 1]?.role === 'user'
+  }
+
+  function canEditUserMessage(msg: ChatMessage): boolean {
+    return msg.role === 'user' && !sending.value
+  }
+
+  async function setMessageFeedback(messageId: string, rating: 'up' | 'down') {
+    const msg = session.value.messages.find((m) => m.id === messageId)
+    if (!msg || msg.role !== 'assistant') return
+    if (msg.feedback === rating) return
+    msg.feedback = rating
+    try {
+      await submitMessageFeedback({
+        sessionId: session.value.id,
+        messageId,
+        domain: domainId.value,
+        rating,
+      })
+      showToast(rating === 'up' ? '感谢反馈' : '已记录，我们会持续改进')
+    } catch {
+      showToast('反馈提交失败，请稍后重试')
     }
   }
 
@@ -167,6 +359,7 @@ export function useChat(
     inputValue,
     sending,
     startPage,
+    hasHistory,
     greetText,
     description,
     introPrompt,
@@ -176,5 +369,21 @@ export function useChat(
     loadSessionById,
     applySession,
     onSubmit,
+    markPreserveInputOnNextDomainSwitch,
+    stopGenerating,
+    retryAssistant,
+    regenerateAssistant,
+    startEditUserMessage,
+    cancelEditUserMessage,
+    editUserMessage,
+    copyMessage,
+    setMessageFeedback,
+    canRegenerateAssistant,
+    canEditUserMessage,
+    isEditing,
+    editingUserId,
+    toast,
+    showToast,
+    composerFocusNonce,
   }
 }

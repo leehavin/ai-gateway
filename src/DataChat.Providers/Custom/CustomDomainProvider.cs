@@ -43,14 +43,23 @@ public sealed class CustomDomainProvider : IChatProvider
             context.UserMessage,
             maxTurns: 20);
 
-        var payload = new
+        var payload = new Dictionary<string, object?>
         {
-            sessionId = context.Session.Id,
-            domain = context.Domain.Id,
-            message = context.UserMessage,
-            stream = true,
-            messages = history.Select(h => new { role = h.Role, content = h.Content })
+            ["sessionId"] = context.Session.Id,
+            ["domain"] = context.Domain.Id,
+            ["message"] = context.UserMessage,
+            ["stream"] = true,
+            ["messages"] = history.Select(h => new { role = h.Role, content = h.Content }).ToList()
         };
+        if (context.Parameters is not null)
+        {
+            payload["parameters"] = new
+            {
+                temperature = context.Parameters.Temperature,
+                topP = context.Parameters.TopP,
+                maxTokens = context.Parameters.MaxTokens
+            };
+        }
 
         var client = _httpClientFactory.CreateClient("DataChat");
         using var request = new HttpRequestMessage(HttpMethod.Post, custom.Endpoint)

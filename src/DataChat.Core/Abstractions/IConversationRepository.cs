@@ -11,4 +11,5 @@ public interface IConversationRepository
     Task<IReadOnlyList<ChatMessage>> GetMessagesAsync(string sessionId, CancellationToken cancellationToken = default);
     Task AppendMessageAsync(ChatMessage message, CancellationToken cancellationToken = default);
     Task UpdateMessageContentAsync(string messageId, string content, CancellationToken cancellationToken = default);
+    Task ClearMessagesAsync(string sessionId, CancellationToken cancellationToken = default);
 }

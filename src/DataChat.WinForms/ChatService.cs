@@ -4,33 +4,33 @@ using DataChat.Core.Configuration;
 using DataChat.Core.Entities;
 using DataChat.Core.History;
 
-namespace DataChat.Application;
+namespace DataChat.WinForms;
 
 public sealed class ChatService
 {
     private readonly ChatOrchestrator _orchestrator;
     private readonly IConversationRepository _repository;
-    private readonly DomainsConfiguration _domains;
+    private readonly IDomainCatalog _domains;
     private CancellationTokenSource? _currentCts;
 
     public ChatService(
         ChatOrchestrator orchestrator,
         IConversationRepository repository,
-        DomainsConfiguration domains)
+        IDomainCatalog domains)
     {
         _orchestrator = orchestrator;
         _repository = repository;
         _domains = domains;
     }
 
-    public DomainsConfiguration Domains => _domains;
+    public DomainsConfiguration Domains => _domains.Current;
 
     public Task<IReadOnlyList<ChatSession>> ListSessionsAsync(CancellationToken ct = default) =>
         _repository.ListSessionsAsync(ct);
 
     public async Task<ChatSession> CreateSessionAsync(string domainId, CancellationToken ct = default)
     {
-        var domain = _domains.Domains.First(d => d.Id == domainId);
+        var domain = _domains.Current.Domains.First(d => d.Id == domainId);
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var session = new ChatSession
         {
@@ -59,7 +59,7 @@ public sealed class ChatService
     {
         var session = await _repository.GetSessionAsync(sessionId, externalCt)
             ?? throw new InvalidOperationException("会话不存在");
-        var domain = _domains.Domains.First(d => d.Id == session.DomainId);
+        var domain = _domains.Current.Domains.First(d => d.Id == session.DomainId);
         var history = await _repository.GetMessagesAsync(sessionId, externalCt);
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 

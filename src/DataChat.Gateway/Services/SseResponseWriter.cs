@@ -30,8 +30,23 @@ public static class SseResponseWriter
                 break;
             }
 
+            if (chunk.ThinkingDelta is not null)
+                await WriteEventAsync(
+                    response,
+                    JsonSerializer.Serialize(new { type = "thinking", delta = chunk.ThinkingDelta }),
+                    cancellationToken);
+
             if (chunk.TextDelta is not null)
-                await WriteEventAsync(response, JsonSerializer.Serialize(new { delta = chunk.TextDelta }), cancellationToken);
+                await WriteEventAsync(
+                    response,
+                    JsonSerializer.Serialize(new { type = "delta", delta = chunk.TextDelta }),
+                    cancellationToken);
+
+            if (chunk.Citations is { Count: > 0 })
+                await WriteEventAsync(
+                    response,
+                    JsonSerializer.Serialize(new { type = "citations", citations = chunk.Citations }),
+                    cancellationToken);
 
             if (chunk.IsCompleted)
                 break;

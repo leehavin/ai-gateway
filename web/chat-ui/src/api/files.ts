@@ -1,3 +1,4 @@
+import { getAuthToken } from '../bridge/hostAuth'
 import type { UploadedFileMeta } from '../types/attachments'
 
 const gatewayUrl = () => {
@@ -6,14 +7,13 @@ const gatewayUrl = () => {
   return base.replace(/\/$/, '')
 }
 
-const token = () => import.meta.env.VITE_DATACHAT_TOKEN || 'demo-token'
-
 export async function uploadFile(file: File): Promise<UploadedFileMeta> {
   const form = new FormData()
   form.append('file', file, file.name)
+  const t = getAuthToken()
   const res = await fetch(`${gatewayUrl()}/v1/files/upload`, {
     method: 'POST',
-    headers: token() ? { Authorization: `Bearer ${token()}` } : {},
+    headers: t ? { Authorization: `Bearer ${t}` } : {},
     body: form,
   })
   if (!res.ok) {

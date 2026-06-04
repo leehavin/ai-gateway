@@ -1,15 +1,12 @@
 import { computed, onMounted, onUnmounted, ref, watch, type Ref } from 'vue'
-import { isNarrowScreen, NARROW_BREAKPOINT } from './useLayout'
-import type { SessionMeta } from '../types'
 import {
-  createNewSession,
-  deleteSessionRecord,
-  formatHistoryDateGroup,
-  formatHistoryTime,
-  loadHistoryIndex,
-  loadSession,
-  setActiveSessionId,
-} from '../utils/session'
+  deleteServerSession,
+  fetchServerSession,
+  fetchServerSessions,
+} from '../api/sessions'
+import { isNarrowScreen, NARROW_BREAKPOINT } from './useLayout'
+import type { ChatSession, SessionMeta } from '../types'
+import { newSessionId, formatHistoryTime, formatHistoryDateGroup } from '../utils/session'
 
 export interface HistoryGroup {
   title: string
@@ -36,34 +33,28 @@ export function useHistory(domainId: Ref<string>) {
     return () => mq.removeEventListener('change', onChange)
   }
 
-  function refresh() {
-    historyList.value = loadHistoryIndex(domainId.value)
-    const active = historyList.value[0]?.id ?? ''
-    if (!activeId.value || !historyList.value.some((x) => x.id === activeId.value)) {
-      activeId.value = active
+  async function refresh() {
+    try {
+      historyList.value = await fetchServerSessions(domainId.value)
+    } catch {
+      historyList.value = []
     }
   }
 
   watch(domainId, () => {
     searchKey.value = ''
-    refresh()
+    void refresh()
   }, { immediate: true })
 
   let unbindMq: (() => void) | undefined
-  onMounted(() => {
-    unbindMq = bindNarrowMq()
-  })
-  onUnmounted(() => {
-    unbindMq?.()
-  })
+  onMounted(() => { unbindMq = bindNarrowMq() })
+  onUnmounted(() => { unbindMq?.() })
 
   const filteredList = computed(() => {
     const q = searchKey.value.trim()
     if (!q) return historyList.value
     return historyList.value.filter(
-      (x) =>
-        x.title.includes(q) ||
-        (x.preview && x.preview.includes(q))
+      (x) => x.title.includes(q) || (x.preview && x.preview.includes(q))
     )
   })
 
@@ -77,33 +68,45 @@ export function useHistory(domainId: Ref<string>) {
     return Array.from(map.entries()).map(([title, items]) => ({ title, items }))
   })
 
-  function selectSession(id: string) {
+  async function selectSession(id: string): Promise<ChatSession> {
     activeId.value = id
-    setActiveSessionId(domainId.value, id)
     closeAsideIfNarrow()
-    return loadSession(domainId.value, id)
+    return await fetchServerSession(domainId.value, id)
   }
 
-  function removeSession(id: string) {
-    deleteSessionRecord(domainId.value, id)
-    refresh()
+  async function removeSession(id: string): Promise<ChatSession> {
+    try {
+      await deleteServerSession(id)
+    } catch {
+      /* 服务端失败可忽略，列表刷新后消失 */
+    }
+    await refresh()
     if (activeId.value === id) {
       activeId.value = historyList.value[0]?.id ?? ''
-      if (activeId.value) setActiveSessionId(domainId.value, activeId.value)
     }
-    return activeId.value ? loadSession(domainId.value, activeId.value) : createNewSession(domainId.value)
+    if (activeId.value) return await selectSession(activeId.value)
+    return { id: newSessionId(), messages: [] }
   }
 
-  function startNewSession() {
-    const session = createNewSession(domainId.value)
-    activeId.value = session.id
-    refresh()
+  function startNewSession(): ChatSession {
     closeAsideIfNarrow()
-    return session
+    return { id: newSessionId(), messages: [] }
   }
 
   function toggleAside() {
     asideExpanded.value = !asideExpanded.value
+  }
+
+  /** 仅更新内存中的标题（服务端无专用 rename 接口，刷新后恢复服务端标题） */
+  function renameSessionTitle(id: string, title: string) {
+    const item = historyList.value.find((x) => x.id === id)
+    if (item) item.title = title.trim() || item.title
+  }
+
+  /** 仅更新内存中的置顶状态 */
+  function togglePin(id: string) {
+    const item = historyList.value.find((x) => x.id === id)
+    if (item) item.pinned = !item.pinned
   }
 
   return {
@@ -121,5 +124,7 @@ export function useHistory(domainId: Ref<string>) {
     closeAsideIfNarrow,
     bindNarrowMq,
     formatHistoryTime,
+    renameSessionTitle,
+    togglePin,
   }
 }

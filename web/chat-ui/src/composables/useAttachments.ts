@@ -1,6 +1,12 @@
 import { computed, ref } from 'vue'
-import type { FileItem } from '@matechat/core/Attachment/attachment-types'
+import { uploadFile } from '../api/files'
 import type { ChatAttachmentRef, UploadedFileMeta } from '../types/attachments'
+import {
+  ATTACHMENT_ACCEPT,
+  ATTACHMENT_MAX_COUNT,
+  ATTACHMENT_MAX_SIZE_MB,
+  type ChatFileItem,
+} from '../ui'
 
 function parseUploadResponse(raw: unknown): UploadedFileMeta | null {
   if (!raw || typeof raw !== 'object') return null
@@ -9,30 +15,29 @@ function parseUploadResponse(raw: unknown): UploadedFileMeta | null {
   return r
 }
 
-export function useAttachments() {
-  const fileItems = ref<FileItem[]>([])
+const acceptSet = new Set(
+  ATTACHMENT_ACCEPT.split(',').map((s) => s.trim().toLowerCase().replace(/^\./, ''))
+)
 
-  const uploadOptions = computed(() => ({
-    uri: '/v1/files/upload',
-    method: 'POST' as const,
-    authToken: `Bearer ${import.meta.env.VITE_DATACHAT_TOKEN || 'demo-token'}`,
-    authTokenHeader: 'Authorization',
-    responseType: 'json' as const,
-  }))
+function isAccepted(file: File): boolean {
+  const ext = file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() : ''
+  return !!ext && acceptSet.has(ext)
+}
+
+export function useAttachments() {
+  const fileItems = ref<ChatFileItem[]>([])
 
   const readyAttachments = computed((): ChatAttachmentRef[] =>
     fileItems.value
-      .filter((f: FileItem) => f.status === 'success')
-      .map((f: FileItem) => {
+      .filter((f) => f.status === 'success')
+      .map((f) => {
         const meta = parseUploadResponse(f.response)
         return meta ? { fileId: meta.fileId, name: meta.name } : null
       })
-      .filter((x: ChatAttachmentRef | null): x is ChatAttachmentRef => x !== null)
+      .filter((x): x is ChatAttachmentRef => x !== null)
   )
 
-  const hasUploading = computed(() =>
-    fileItems.value.some((f: FileItem) => f.status === 'uploading')
-  )
+  const hasUploading = computed(() => fileItems.value.some((f) => f.status === 'uploading'))
 
   function clearAttachments() {
     fileItems.value = []
@@ -48,15 +53,65 @@ export function useAttachments() {
   }
 
   const dropZoneEl = ref<HTMLElement | null>(null)
+  const fileInputEl = ref<HTMLInputElement | null>(null)
+
+  function openFilePicker() {
+    fileInputEl.value?.click()
+  }
+
+  async function addFiles(files: File[]) {
+    const maxBytes = ATTACHMENT_MAX_SIZE_MB * 1024 * 1024
+    for (const file of files) {
+      if (fileItems.value.length >= ATTACHMENT_MAX_COUNT) break
+      if (!isAccepted(file)) continue
+      if (file.size > maxBytes) continue
+
+      const uid = Date.now() + Math.random()
+      const item: ChatFileItem = {
+        uid,
+        name: file.name,
+        size: file.size,
+        status: 'uploading',
+      }
+      fileItems.value = [...fileItems.value, item]
+      try {
+        const meta = await uploadFile(file)
+        fileItems.value = fileItems.value.map((f) =>
+          f.uid === uid ? { ...f, status: 'success', response: meta } : f
+        )
+      } catch (err) {
+        fileItems.value = fileItems.value.map((f) =>
+          f.uid === uid
+            ? {
+                ...f,
+                status: 'error',
+                response: { message: err instanceof Error ? err.message : String(err) },
+              }
+            : f
+        )
+      }
+    }
+  }
+
+  async function onHiddenFileChange(e: Event) {
+    const input = e.target as HTMLInputElement
+    const files = input.files
+    if (!files?.length) return
+    await addFiles(Array.from(files))
+    input.value = ''
+  }
 
   return {
     fileItems,
-    uploadOptions,
     readyAttachments,
     hasUploading,
     clearAttachments,
     formatAttachmentNote,
     dropZoneEl,
+    fileInputEl,
+    openFilePicker,
+    onHiddenFileChange,
+    addFiles,
     getDropContainer,
   }
 }

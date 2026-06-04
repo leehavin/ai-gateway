@@ -49,12 +49,10 @@ DataChat Gateway 主要代理 **5670 / v2**。
 | 官方 API | DataChat 路径 | 状态 |
 |----------|---------------|------|
 | `POST /api/v2/chat/completions`（流式） | `DbGptChatProvider` → 领域 `provider=dbgpt` | ✅ 已修复 messages 格式 |
-| `GET /api/v2/serve/apps` | `GET /v1/dbgpt/apps` | ✅ |
-| `GET /api/v2/serve/apps/{id}` | `GET /v1/dbgpt/apps/{id}` | ✅ 本次补充 |
-| `GET /api/v2/serve/datasources` | `GET /v1/dbgpt/datasources` | ✅ |
-| `GET /api/v2/serve/datasources/{id}` | `GET /v1/dbgpt/datasources/{id}` | ✅ 本次补充 |
-| `GET /api/v2/serve/knowledge/spaces` | `GET /v1/dbgpt/knowledge/spaces` | ✅ 本次补充 |
-| 健康探测 | `GET /v1/dbgpt/ping` | ✅ |
+| `GET /api/v2/serve/apps` | Gateway 未代理（直连 DB-GPT 或管理后台） | — |
+| `GET /api/v2/serve/datasources` | 同上 | — |
+| `GET /api/v2/serve/knowledge/spaces` | 同上 | — |
+| 健康探测 | `GET /v1/health` → `dbgptReachable` | ✅ |
 
 ### 未对接（按需排期）
 
@@ -95,7 +93,7 @@ Web/WinForms → DataChat Gateway (/v1/*)
 
 ## 五、配置检查清单（接真实环境）
 
-1. `domains.json` → `defaults.dbgptBaseUrl` 指向公司 `https://dbgpt...:5670`
+1. `dc_global_defaults.dbgpt_base_url` 指向公司 `https://dbgpt...:5670`
 2. `ApiKeys:dbgpt-main` 与 DB-GPT 环境变量 `API_KEYS` 一致
 3. `Gateway:UseMock` = `false`
 4. 领域 `dbgpt.chatMode` / `chat_param` 与官方表一致（如 `chat_data` + 数据源 id）

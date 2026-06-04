@@ -1,3 +1,4 @@
+using DataChat.Core.Abstractions;
 using DataChat.Core.Chat;
 using DataChat.Core.Configuration;
 using DataChat.Core.Entities;
@@ -10,27 +11,30 @@ namespace DataChat.Gateway.Services;
 public sealed class GatewayChatService
 {
     private readonly ChatOrchestrator _orchestrator;
-    private readonly DomainsConfiguration _domains;
+    private readonly IDomainCatalog _domains;
     private readonly GatewayOptions _options;
     private readonly FileStorageService _files;
+    private readonly GatewaySessionService _sessions;
     private readonly ILogger<GatewayChatService> _logger;
 
     public GatewayChatService(
         ChatOrchestrator orchestrator,
-        DomainsConfiguration domains,
+        IDomainCatalog domains,
         IOptions<GatewayOptions> options,
         FileStorageService files,
+        GatewaySessionService sessions,
         ILogger<GatewayChatService> logger)
     {
         _orchestrator = orchestrator;
         _domains = domains;
         _options = options.Value;
         _files = files;
+        _sessions = sessions;
         _logger = logger;
     }
 
     public DomainProfile? ResolveDomain(string domainId) =>
-        _domains.Domains.FirstOrDefault(d => string.Equals(d.Id, domainId, StringComparison.OrdinalIgnoreCase));
+        _domains.Current.Domains.FirstOrDefault(d => string.Equals(d.Id, domainId, StringComparison.OrdinalIgnoreCase));
 
     public string? ValidateRequest(ChatStreamRequest request)
     {
@@ -76,7 +80,9 @@ public sealed class GatewayChatService
             UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         };
 
-        var maxTurns = _domains.Defaults.MaxHistoryTurns > 0 ? _domains.Defaults.MaxHistoryTurns : 20;
+        var maxTurns = _domains.Current.Defaults.MaxHistoryTurns > 0
+            ? _domains.Current.Defaults.MaxHistoryTurns
+            : 20;
         var history = TrimHistory(request.Messages ?? [], userMessage, maxTurns);
 
         return new ChatContext
@@ -84,9 +90,25 @@ public sealed class GatewayChatService
             Session = session,
             Domain = domain,
             History = history,
-            UserMessage = userMessage
+            UserMessage = userMessage,
+            Parameters = MapParameters(request.Parameters)
         };
     }
+
+    private static ChatGenerationParameters? MapParameters(ChatParametersDto? dto)
+    {
+        if (dto is null) return null;
+        if (dto.Temperature is null && dto.TopP is null && dto.MaxTokens is null) return null;
+        return new ChatGenerationParameters
+        {
+            Temperature = Clamp(dto.Temperature, 0, 2),
+            TopP = Clamp(dto.TopP, 0, 1),
+            MaxTokens = dto.MaxTokens is > 0 and <= 128000 ? dto.MaxTokens : null
+        };
+    }
+
+    private static double? Clamp(double? value, double min, double max) =>
+        value is null ? null : Math.Clamp(value.Value, min, max);
 
     private string ComposeUserMessage(ChatStreamRequest request) =>
         AttachmentMessageComposer.Compose(request.Message ?? "", request.Attachments, _files);
@@ -101,6 +123,37 @@ public sealed class GatewayChatService
 
         await foreach (var chunk in _orchestrator.SendAsync(context, cancellationToken))
             yield return chunk;
+    }
+
+    public async IAsyncEnumerable<ChatChunk> StreamAndPersistAsync(
+        ChatStreamRequest request,
+        ChatContext context,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var text = new System.Text.StringBuilder();
+        var thinking = new System.Text.StringBuilder();
+        IReadOnlyList<ChatCitation>? citations = null;
+        var hadError = false;
+
+        await foreach (var chunk in StreamAsync(context, cancellationToken))
+        {
+            if (chunk.TextDelta is not null) text.Append(chunk.TextDelta);
+            if (chunk.ThinkingDelta is not null) thinking.Append(chunk.ThinkingDelta);
+            if (chunk.Citations is not null) citations = chunk.Citations;
+            if (chunk.Error is not null) hadError = true;
+            yield return chunk;
+        }
+
+        if (!hadError && (text.Length > 0 || thinking.Length > 0))
+        {
+            await _sessions.PersistStreamTurnAsync(
+                request,
+                context.UserMessage,
+                text.ToString(),
+                thinking.Length > 0 ? thinking.ToString() : null,
+                citations,
+                cancellationToken);
+        }
     }
 
     private static List<ChatMessage> TrimHistory(

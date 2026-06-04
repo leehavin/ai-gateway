@@ -1,3 +1,4 @@
+using DataChat.Core.Abstractions;
 using DataChat.Core.Configuration;
 using DataChat.Gateway.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -8,19 +9,25 @@ namespace DataChat.Gateway.Controllers;
 [Route("v1/domains")]
 public sealed class DomainsController : ControllerBase
 {
-    private readonly DomainsConfiguration _domains;
+    private readonly IDomainCatalog _catalog;
 
-    public DomainsController(DomainsConfiguration domains) => _domains = domains;
+    public DomainsController(IDomainCatalog catalog) => _catalog = catalog;
 
     [HttpGet]
-    public ActionResult<IReadOnlyList<DomainItemDto>> List() => Ok(_domains.Domains.Select(ToDto).ToList());
+    public ActionResult<IReadOnlyList<DomainItemDto>> List() =>
+        Ok(_catalog.Current.Domains.Select(ToDto).ToList());
 
-    [HttpGet("{domainId}")]
-    public ActionResult<DomainItemDto> Get(string domainId)
+    /// <summary>从数据库或文件重新加载领域配置。</summary>
+    [HttpPost("reload")]
+    public async Task<IActionResult> Reload(CancellationToken cancellationToken)
     {
-        var d = _domains.Domains.FirstOrDefault(x =>
-            string.Equals(x.Id, domainId, StringComparison.OrdinalIgnoreCase));
-        return d is null ? NotFound() : Ok(ToDto(d));
+        await _catalog.ReloadAsync(cancellationToken);
+        return Ok(new
+        {
+            ok = true,
+            count = _catalog.Current.Domains.Count,
+            source = "reloaded"
+        });
     }
 
     private static DomainItemDto ToDto(DomainProfile d) => new()

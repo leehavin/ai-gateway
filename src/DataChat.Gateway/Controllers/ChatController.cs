@@ -29,7 +29,7 @@ public sealed class ChatController : ControllerBase
         var context = _chatService.BuildContext(request, domain);
         await SseResponseWriter.WriteStreamAsync(
             Response,
-            _chatService.StreamAsync(context, cancellationToken),
+            _chatService.StreamAndPersistAsync(request, context, cancellationToken),
             cancellationToken);
     }
 }

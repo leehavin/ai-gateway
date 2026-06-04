@@ -19,13 +19,13 @@ public sealed class CozeChatProvider : IChatProvider
 {
     private readonly CozeClientFactory _clientFactory;
     private readonly ICozeConversationStore _conversationStore;
-    private readonly DomainsConfiguration _domains;
+    private readonly IDomainCatalog _domains;
     private readonly ILogger<CozeChatProvider> _logger;
 
     public CozeChatProvider(
         CozeClientFactory clientFactory,
         ICozeConversationStore conversationStore,
-        DomainsConfiguration domains,
+        IDomainCatalog domains,
         ILogger<CozeChatProvider> logger)
     {
         _clientFactory = clientFactory;
@@ -54,7 +54,7 @@ public sealed class CozeChatProvider : IChatProvider
         string? authError = null;
         try
         {
-            var endpoint = coze.Endpoint ?? _domains.Defaults.CozeEndpoint;
+            var endpoint = coze.Endpoint ?? _domains.Current.Defaults.CozeEndpoint;
             clientContext = await _clientFactory.CreateContextAsync(endpoint, coze.ApiKeyRef, cancellationToken);
         }
         catch (Exception ex)
@@ -77,7 +77,9 @@ public sealed class CozeChatProvider : IChatProvider
             yield break;
         }
 
-        var maxTurns = _domains.Defaults.MaxHistoryTurns > 0 ? _domains.Defaults.MaxHistoryTurns : 20;
+        var maxTurns = _domains.Current.Defaults.MaxHistoryTurns > 0
+            ? _domains.Current.Defaults.MaxHistoryTurns
+            : 20;
         var history = ChatHistoryBuilder.Build(context.Domain, context.History, context.UserMessage, maxTurns);
 
         var request = new ChatRequest

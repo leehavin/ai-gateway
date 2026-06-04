@@ -1,4 +1,4 @@
-using DataChat.Application;
+using DataChat.Core.Abstractions;
 using DataChat.Core.Configuration;
 using DataChat.Core.Entities;
 using DataChat.WinForms.UI;
@@ -15,7 +15,7 @@ public sealed class MainForm : Form
     private static readonly Color TextMuted = Color.FromArgb(100, 116, 139);
 
     private readonly ChatService _chatService;
-    private readonly DomainsConfiguration _domains;
+    private readonly IDomainCatalog _domains;
     private readonly ChatWebViewHost _webView = new();
     private readonly ListBox _sessionList = new();
     private readonly ComboBox _domainCombo = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
@@ -29,7 +29,7 @@ public sealed class MainForm : Form
     private string? _streamingAssistantId;
     private bool _sending;
 
-    public MainForm(ChatService chatService, DomainsConfiguration domains)
+    public MainForm(ChatService chatService, IDomainCatalog domains)
     {
         _chatService = chatService;
         _domains = domains;
@@ -151,7 +151,7 @@ public sealed class MainForm : Form
             Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold),
             Padding = new Padding(0, 8, 8, 0)
         };
-        foreach (var d in _domains.Domains)
+        foreach (var d in _domains.Current.Domains)
             _domainCombo.Items.Add(d);
         _domainCombo.DisplayMember = "DisplayName";
         _domainCombo.Font = new Font("Segoe UI", 9.5f);
@@ -202,7 +202,8 @@ public sealed class MainForm : Form
         inputWrap.Controls.Add(inputBorder);
         inner.Controls.Add(inputWrap, 0, 2);
 
-        _statusLabel.Text = $"  DB-GPT {_domains.Defaults.DbgptBaseUrl}  ·  Coze {_domains.Defaults.CozeEndpoint}  ·  本地 history";
+        _statusLabel.Text =
+            $"  DB-GPT {_domains.Current.Defaults.DbgptBaseUrl}  ·  Coze {_domains.Current.Defaults.CozeEndpoint}  ·  本地 history";
         _statusLabel.ForeColor = TextMuted;
         _statusLabel.Font = new Font("Segoe UI", 8.25f);
         inner.Controls.Add(_statusLabel, 0, 3);

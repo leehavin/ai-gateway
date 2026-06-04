@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 
 namespace DataChat.Infrastructure.Persistence;
 
-public sealed class SqliteConversationRepository : IConversationRepository, IAsyncDisposable
+public sealed class SqliteConversationRepository : IConversationRepository, IDatabaseInitializer, IAsyncDisposable
 {
     private readonly string _connectionString;
     private readonly SemaphoreSlim _initLock = new(1, 1);
@@ -32,35 +32,10 @@ public sealed class SqliteConversationRepository : IConversationRepository, IAsy
         }
     }
 
-    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    public Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        await using var conn = new SqliteConnection(_connectionString);
-        await conn.OpenAsync(cancellationToken);
-        var sql = """
-            CREATE TABLE IF NOT EXISTS chat_session (
-              id TEXT PRIMARY KEY,
-              title TEXT NOT NULL,
-              domain_id TEXT NOT NULL,
-              chat_mode TEXT NOT NULL,
-              model TEXT,
-              resource_id TEXT,
-              created_at INTEGER NOT NULL,
-              updated_at INTEGER NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS chat_message (
-              id TEXT PRIMARY KEY,
-              session_id TEXT NOT NULL,
-              role TEXT NOT NULL,
-              content TEXT NOT NULL,
-              extras_json TEXT,
-              created_at INTEGER NOT NULL,
-              FOREIGN KEY(session_id) REFERENCES chat_session(id)
-            );
-            """;
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = sql;
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
         _initialized = true;
+        return Task.CompletedTask;
     }
 
     public async Task<IReadOnlyList<ChatSession>> ListSessionsAsync(CancellationToken cancellationToken = default)
@@ -157,6 +132,17 @@ public sealed class SqliteConversationRepository : IConversationRepository, IAsy
         cmd.CommandText = "UPDATE chat_message SET content=$content WHERE id=$id";
         cmd.Parameters.AddWithValue("$id", messageId);
         cmd.Parameters.AddWithValue("$content", content);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task ClearMessagesAsync(string sessionId, CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM chat_message WHERE session_id=$sid";
+        cmd.Parameters.AddWithValue("$sid", sessionId);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 

@@ -8,6 +8,7 @@ public sealed class ChatStreamRequest
     public bool Stream { get; set; } = true;
     public List<ChatStreamMessage>? Messages { get; set; }
     public List<ChatAttachmentDto>? Attachments { get; set; }
+    public ChatParametersDto? Parameters { get; set; }
 }
 
 public sealed class ChatStreamMessage

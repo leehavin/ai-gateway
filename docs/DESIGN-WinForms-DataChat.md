@@ -33,10 +33,10 @@
 - 替代 DB-GPT Web 管理端（数据源、知识库维护仍在 DB-GPT 完成）；
 - 移动端原生 App。
 
-### 1.3 Web 嵌入式侧栏（已纳入）
+### 1.3 Web 客户端（已纳入）
 
-- 业务系统引入 **`datachat-embed.js`** 即可显示右侧 AI 对话框（见 `docs/DESIGN-Web-Embed.md`）。
-- 浏览器 **经 DataChat.Gateway** 访问领域/DB-GPT，不在页面暴露主密钥。
+- 使用 **`web/chat-ui`**（Vue 3）构建；可部署为静态站点或嵌入 **WebView2 / CefSharp**。
+- 浏览器 **经 DataChat.Gateway** 访问领域/DB-GPT，不在页面暴露主密钥。详见 [web/chat-ui/README.md](../web/chat-ui/README.md)。
 
 ### 1.4 假设
 

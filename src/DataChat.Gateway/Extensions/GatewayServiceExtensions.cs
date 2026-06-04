@@ -6,6 +6,7 @@ using DataChat.Gateway.Middleware;
 using DataChat.Gateway.Security;
 using DataChat.Gateway.Services;
 using DataChat.Infrastructure.Configuration;
+using DataChat.Infrastructure.Persistence;
 using DataChat.Providers;
 using Microsoft.Extensions.Options;
 
@@ -22,12 +23,23 @@ public static class GatewayServiceExtensions
         var gatewayOptions = configuration.GetSection(GatewayOptions.SectionName).Get<GatewayOptions>()
             ?? new GatewayOptions();
 
-        var domainsPath = Path.Combine(AppContext.BaseDirectory, gatewayOptions.DomainsFile);
-        var domains = DomainsConfigurationLoader.Load(domainsPath);
-        services.AddSingleton(domains);
+        var dbOptions = DataChatDatabaseExtensions.ReadDbOptions(configuration);
+        var domainsSetup = new DomainsSetupOptions
+        {
+            Source = DomainsSourceParser.Parse(gatewayOptions.DomainsSource),
+            DomainsFile = gatewayOptions.DomainsFile,
+            DatabasePath = gatewayOptions.DatabasePath,
+            SeedFromFileWhenEmpty = gatewayOptions.SeedDomainsFromFileWhenEmpty
+        };
 
         services.AddSingleton<IApiKeyStore, ConfigApiKeyStore>();
+
+        var baseDir = AppContext.BaseDirectory;
+        var sqlSugar = DataChatDatabaseExtensions.AddDataChatDatabase(services, dbOptions, domainsSetup, baseDir);
+        var domains = DomainsConfigurationRegistrar.RegisterDomains(services, domainsSetup, baseDir, sqlSugar);
         services.AddSingleton<FileStorageService>();
+        services.AddSingleton<GatewaySessionService>();
+        services.AddSingleton<FeedbackService>();
         services.AddSingleton<GatewayChatService>();
         services.AddSingleton<DbgptResourceService>();
         services.AddSingleton<CozeResourceService>();

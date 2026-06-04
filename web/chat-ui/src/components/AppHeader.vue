@@ -1,15 +1,19 @@
 <script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { BRAND } from '../constants/brand'
 import type { DomainItem, GatewayHealth } from '../types'
 
-defineProps<{
+const props = defineProps<{
   title: string
   domains: DomainItem[]
   domainId: string
+  activeProvider?: string
   loading: boolean
   error: string | null
   health: GatewayHealth | null
   showMenu: boolean
+  canExport?: boolean
+  paramsOpen?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -17,7 +21,34 @@ const emit = defineEmits<{
   refresh: []
   toggleMenu: []
   toggleHistory: []
+  openParams: []
+  exportMarkdown: []
+  exportJson: []
+  exportPdf: []
+  cozeNewChat: []
 }>()
+
+const isCoze = computed(() => props.activeProvider === 'coze')
+
+const exportOpen = ref(false)
+const exportRoot = ref<HTMLElement | null>(null)
+
+function toggleExportMenu() {
+  exportOpen.value = !exportOpen.value
+}
+
+function closeExportMenu() {
+  exportOpen.value = false
+}
+
+function onDocClick(e: MouseEvent) {
+  if (!exportOpen.value) return
+  const el = exportRoot.value
+  if (el && !el.contains(e.target as Node)) closeExportMenu()
+}
+
+onMounted(() => document.addEventListener('click', onDocClick))
+onUnmounted(() => document.removeEventListener('click', onDocClick))
 </script>
 
 <template>
@@ -27,7 +58,7 @@ const emit = defineEmits<{
         v-if="showMenu"
         type="button"
         class="dc-icon-btn"
-        title="对话历史"
+        title="展开对话历史"
         @click="emit('toggleMenu')"
       >
         <i class="icon-list-view"></i>
@@ -57,6 +88,17 @@ const emit = defineEmits<{
           <option v-for="d in domains" :key="d.id" :value="d.id">{{ d.displayName }}</option>
         </select>
       </label>
+      <button
+        v-if="isCoze"
+        type="button"
+        class="coze-new-btn"
+        title="新建 Coze 会话"
+        :disabled="loading || !!error"
+        @click="emit('cozeNewChat')"
+      >
+        <i class="icon-add"></i>
+        <span class="coze-new-label">新会话</span>
+      </button>
     </div>
 
     <div class="header-right">
@@ -86,6 +128,37 @@ const emit = defineEmits<{
       >
         <i class="icon-history"></i>
       </button>
+      <button
+        type="button"
+        class="dc-icon-btn"
+        :class="paramsOpen && 'dc-icon-btn--active'"
+        title="生成参数"
+        @click="emit('openParams')"
+      >
+        <i class="icon-priority"></i>
+      </button>
+      <div ref="exportRoot" class="export-wrap">
+        <button
+          type="button"
+          class="dc-icon-btn"
+          title="导出对话"
+          :disabled="!canExport"
+          @click.stop="toggleExportMenu"
+        >
+          <i class="icon-add-file"></i>
+        </button>
+        <div v-if="exportOpen && canExport" class="export-menu" role="menu">
+          <button type="button" role="menuitem" @click="emit('exportMarkdown'); closeExportMenu()">
+            导出 Markdown
+          </button>
+          <button type="button" role="menuitem" @click="emit('exportJson'); closeExportMenu()">
+            导出 JSON
+          </button>
+          <button type="button" role="menuitem" @click="emit('exportPdf'); closeExportMenu()">
+            导出 PDF…
+          </button>
+        </div>
+      </div>
       <button type="button" class="dc-icon-btn" title="刷新配置" @click="emit('refresh')">
         <i class="icon-refresh"></i>
       </button>
@@ -144,7 +217,10 @@ const emit = defineEmits<{
 .header-center {
   flex: 1;
   display: flex;
+  align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -184,6 +260,35 @@ const emit = defineEmits<{
 .domain-select:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.coze-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid rgba(79, 70, 229, 0.25);
+  border-radius: var(--dc-radius-pill);
+  background: #fff;
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.coze-new-btn:hover:not(:disabled) {
+  background: #f5f3ff;
+  border-color: rgba(79, 70, 229, 0.4);
+}
+
+.coze-new-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.coze-new-btn i {
+  font-size: 14px;
 }
 
 .header-right {
@@ -247,6 +352,49 @@ const emit = defineEmits<{
   font-size: 16px;
 }
 
+.dc-icon-btn--active {
+  border-color: rgba(94, 124, 224, 0.55);
+  color: var(--dc-brand);
+  background: var(--dc-brand-soft);
+}
+
+.export-wrap {
+  position: relative;
+}
+
+.export-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 120;
+  min-width: 160px;
+  padding: 6px;
+  border: 1px solid var(--dc-border);
+  border-radius: var(--dc-radius-md);
+  background: #fff;
+  box-shadow: var(--dc-shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.export-menu button {
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--dc-radius-sm);
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  color: var(--dc-text);
+  cursor: pointer;
+}
+
+.export-menu button:hover {
+  background: var(--dc-brand-soft);
+  color: var(--dc-brand);
+}
+
 @media (max-width: 900px) {
   .header-sub {
     display: none;
@@ -259,11 +407,16 @@ const emit = defineEmits<{
   .dc-badge:not(.dc-badge--error) {
     display: none;
   }
+
+  .coze-new-label {
+    display: none;
+  }
 }
 
 @media (max-width: 640px) {
   .domain-field-label {
     display: none;
   }
+
 }
 </style>

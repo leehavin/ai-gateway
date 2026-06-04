@@ -1,6 +1,6 @@
 # DataChat
 
-企业级 AI 对话中台：统一接入 **DB-GPT**、**扣子（Coze）** 与公司自研 HTTP 领域服务，为 **WinForms 桌面客户端** 与 **Web 嵌入式侧栏** 提供同一套流式对话 API。
+企业级 AI 对话中台：统一接入 **DB-GPT**、**扣子（Coze）** 与公司自研 HTTP 领域服务，为 **WinForms 桌面客户端** 与 **Web 客户端（chat-ui）** 提供同一套流式对话 API。
 
 ---
 
@@ -14,7 +14,7 @@
 - [Gateway 网关](#gateway-网关)
 - [领域配置 domainsjson](#领域配置-domainsjson)
 - [Provider 说明](#provider-说明)
-- [Web 嵌入](#web-嵌入)
+- [Web 客户端](#web-客户端)
 - [WinForms 桌面端](#winforms-桌面端)
 - [API 参考](#api-参考)
 - [生产部署建议](#生产部署建议)
@@ -28,7 +28,7 @@
 
 | 场景 | 说明 |
 |------|------|
-| 专利 / 业务系统 Web 页 | 引入 `datachat-embed.js`，右侧弹出 AI 侧栏 |
+| 专利 / 业务系统 Web 页 | `web/chat-ui` 构建后嵌入 WebView2 / CefSharp |
 | 内部桌面工具 | WinForms + WebView2 对话界面 |
 | 多 Agent 统一入口 | 一个 Gateway，按 `domain` 路由到不同后端 |
 | 数据问数 | 对接 DB-GPT Text2SQL |
@@ -43,7 +43,7 @@
 ```
 ┌─────────────────┐     ┌─────────────────┐
 │  WinForms 客户端 │     │  Web 业务系统     │
-│  (WebView2)     │     │  + embed.js     │
+│  (WebView2)     │     │  chat-ui (Vue)  │
 └────────┬────────┘     └────────┬────────┘
          │                       │
          │  Bearer Token         │  Bearer Token
@@ -53,7 +53,7 @@
          │   DataChat.Gateway    │  :5080
          │   /v1/chat/stream     │
          └───────────┬───────────┘
-                     │ domains.json 路由
+                     │ dc_domain / 领域配置 路由
        ┌─────────────┼─────────────┬──────────────┐
        ▼             ▼             ▼              ▼
   Custom HTTP    DB-GPT        Coze Bot      (Mock 演示)
@@ -69,7 +69,7 @@
 | # | 决定 |
 |---|------|
 | 1 | DB-GPT 部署在公司统一服务器（`defaults.dbgptBaseUrl`） |
-| 2 | UI：WinForms WebView2 + Web Shadow DOM 嵌入 |
+| 2 | UI：WinForms WebView2 + Vue `chat-ui`（可 CefSharp 嵌入） |
 | 3 | 上下文：**仅本地 history**，Gateway 拼消息后转发 |
 | 4 | 领域：以 **自研 HTTP** 为主；DB-GPT / Coze 为辅 |
 | 5 | 认证：Gateway **Bearer Token**；后端 **ApiKeys**（V1 无 AD/SSO） |
@@ -82,7 +82,7 @@
 |------|------|
 | .NET SDK | 8.0+ |
 | Windows（WinForms） | 10+，需 WebView2 Runtime |
-| Node.js（可选） | 用于本地静态服务 demo 页面 |
+| Node.js（Web） | 构建/开发 `web/chat-ui` |
 | DB-GPT | 已部署可访问实例（示例 `http://42.193.110.76:5670`） |
 | Coze | [扣子开放平台](https://www.coze.cn/) PAT/SAT + Bot ID |
 
@@ -114,7 +114,7 @@ dotnet build src\DataChat.Gateway\DataChat.Gateway.csproj
 }
 ```
 
-编辑 `src\DataChat.Gateway\domains.json`：将 `YOUR_COZE_BOT_ID` 换成真实 Bot ID；确认 `dbgptBaseUrl` 指向你的 DB-GPT。
+执行 `db/sqlserver/` 或 `db/sqlite/` 下建表与种子 SQL（见 [db/README.md](db/README.md)）。在库表 `dc_domain` 中把 Coze 的 `YOUR_COZE_BOT_ID` 换成真实 Bot ID，并核对 `dc_global_defaults.dbgpt_base_url`。
 
 ### 3. 启动 Gateway
 
@@ -134,11 +134,9 @@ curl.exe http://127.0.0.1:5080/v1/health
 
 期望：`useMock: false`，`dbgptReachable: true`（DB-GPT 可达时）。
 
-### 5. 启动 Web 演示
+### 5. 启动 Web 客户端
 
 **终端 A** — Gateway（上一步已启动）
-
-**方式 A — MateChat 全屏客户端（推荐）**
 
 ```powershell
 cd E:\AIHUB\web\chat-ui
@@ -150,15 +148,7 @@ npm run dev
 
 环境变量见 `web/chat-ui/.env.development`（`VITE_DATACHAT_TOKEN`、`VITE_DEFAULT_DOMAIN`）。开发模式默认通过 Vite 代理 `/v1` → Gateway `:5080`。
 
-**方式 B — 嵌入式侧栏演示**
-
-```powershell
-npx --yes http-server E:\AIHUB\web\embed -p 5500 -c-1
-```
-
-浏览器打开：**http://127.0.0.1:5500/demo.html**
-
-> 请用 `http://` 访问 demo，不要用 `file://`，否则跨域请求 Gateway 会失败。
+生产或 CefSharp 嵌入：`npm run build`，使用 `web/chat-ui/dist/`。
 
 ### 6. 启动 WinForms（可选）
 
@@ -180,7 +170,10 @@ dotnet run
 | `Gateway:UseMock` | `true` 时仅返回模拟回复，不调用外部服务 |
 | `Gateway:ValidTokens` | 允许访问 Gateway 的 Bearer Token 列表 |
 | `Gateway:AllowedOrigins` | CORS；开发可用 `*`，生产改为业务域名 |
-| `Gateway:DomainsFile` | 领域配置文件名，默认 `domains.json` |
+| `Gateway:DomainsSource` | 推荐 `Database`（见 [docs/Domains-Database.md](docs/Domains-Database.md)）；`File` 仅本地调试 |
+| `Gateway:DomainsFile` | `DomainsSource=File` 时的 JSON 路径 |
+| `Gateway:SeedDomainsFromFileWhenEmpty` | 默认 `false`；为 `true` 时表空才从 JSON 导入 |
+| `Gateway:DbProvider` | `Sqlite` 或 `SqlServer`；建表见 [db/README.md](db/README.md) |
 | `Gateway:TimeoutSeconds` | HTTP 超时（秒） |
 | `Gateway:MaxMessageLength` | 单条用户消息最大长度 |
 | `ApiKeys:*` | 后端服务密钥，通过 `apiKeyRef` 引用 |
@@ -203,14 +196,11 @@ Token 必须与 `Gateway:ValidTokens` 中某项一致。Web 嵌入通过 `getTok
 
 ---
 
-## 领域配置 domains.json
+## 领域配置（数据库）
 
-文件位置：
+运行时从表 `dc_global_defaults`、`dc_domain` 加载（`Gateway:DomainsSource=Database`）。初始化数据见 `db/*/02-seed-domains.sql`；JSON 形态参考 `config/domains.json.example`（仅文档/可选 `DomainsSource=File`）。
 
-- Gateway：`src/DataChat.Gateway/domains.json`（运行时在输出目录复制）
-- WinForms：`src/DataChat.WinForms/domains.json`
-
-### 全局 defaults
+### 全局 defaults（`dc_global_defaults`）
 
 | 字段 | 说明 |
 |------|------|
@@ -315,15 +305,7 @@ curl.exe -H "Authorization: Bearer demo-token" http://127.0.0.1:5080/v1/coze/pin
 > `datasourceId` 填 DB-GPT 数据源**名称**（如 `Walmart_Sales`），不是数字 id。  
 > 数据问数场景 Gateway 使用**非流式**向 DB-GPT 取 `<chart-view>` 结果，再格式化为 SQL + Markdown 表格推给前端。
 
-**DB-GPT 资源代理：**
-
-| Gateway | 说明 |
-|---------|------|
-| `GET /v1/dbgpt/ping` | 探测连通 |
-| `GET /v1/dbgpt/datasources` | 数据源列表 |
-| `GET /v1/dbgpt/apps` | 应用列表 |
-| `GET /v1/dbgpt/knowledge/spaces` | 知识库空间 |
-| `POST /v1/dbgpt/proxy/{path}` | 透传 `/api/v2/*` |
+DB-GPT 连通性见 `GET /v1/health` 的 `dbgptReachable`；对话与资源管理经 `POST /v1/chat/stream` 或直连 DB-GPT 实例。
 
 模型列表以 DB-GPT 实例为准（`/api/v2/serve/model/models`）。当前示例环境模型为 **`deepseek-ai/DeepSeek-V3`**。
 
@@ -348,54 +330,22 @@ curl.exe -H "Authorization: Bearer demo-token" http://127.0.0.1:5080/v1/coze/pin
 
 ---
 
-## Web 嵌入
+## Web 客户端
 
-### 文件
-
-| 文件 | 说明 |
+| 路径 | 说明 |
 |------|------|
-| `web/chat-ui/` | Vue 3 + MateChat 全屏客户端（见 [web/chat-ui/README.md](web/chat-ui/README.md)） |
-| `web/embed/datachat-embed.js` | 单文件 Shadow DOM 侧栏，可 CDN 发布 |
-| `web/embed/demo.html` | 专利系统风格演示页 |
+| `web/chat-ui/` | Vue 3 自研对话 UI（`@` 选智能体、`/coze`、附件上传） |
 
-### 最简集成
+详见 [web/chat-ui/README.md](web/chat-ui/README.md)。
 
-```html
-<script src="/static/datachat-embed.js"></script>
-<script>
-  DataChatEmbed.init({
-    gatewayUrl: 'http://127.0.0.1:5080',
-    getToken: function () { return window.__AUTH_TOKEN__; },
-    domain: 'patent-coze',
-    userName: '李优优',
-    autoOpen: true,
-    loadConfigFromGateway: true
-  });
-</script>
-```
+### 集成方式
 
-### init 参数
-
-| 参数 | 必填 | 说明 |
-|------|------|------|
-| `gatewayUrl` | 是 | Gateway 基地址 |
-| `domain` | 是 | `domains.json` 中的 `id` |
-| `getToken` / `token` | 建议 | 返回 Gateway Bearer Token |
-| `userName` | 否 | 欢迎语称呼 |
-| `quickPrompts` | 否 | 不传则从 `GET /v1/domains/{id}` 加载 |
-| `loadConfigFromGateway` | 否 | 默认 `true`，自动拉 placeholder / quickPrompts |
-| `width` | 否 | 侧栏宽度，默认 400 |
-| `autoOpen` | 否 | 是否默认展开 |
+- **浏览器**：`npm run dev` 或部署 `dist/` 静态资源，配置 `VITE_GATEWAY_URL` 指向 Gateway HTTPS。
+- **CefSharp / WebView2**：加载 `dist/index.html`，由宿主注入 Token（与 `VITE_DATACHAT_TOKEN` 等价）。
 
 ### 会话存储
 
-Web 端使用 `localStorage`，键名 `datachat:session:{domain}`，含 `sessionId` 与 `messages`。切换 `domain` 会切换独立会话。
-
-### 渲染能力
-
-- 普通 Markdown 文本流式输出  
-- 代码块（```sql）  
-- DB-GPT 数据问数返回的 **Markdown 表格**
+`localStorage`，键名 `datachat:session:{domain}:{sessionId}` 与 `datachat:history:{domain}`。切换 `domain` 切换独立会话列表。
 
 ---
 
@@ -411,7 +361,7 @@ cd src\DataChat.WinForms
 dotnet run
 ```
 
-WinForms 可**直连** DB-GPT / Coze Provider（读本地 `domains.json`），也可将 `custom.endpoint` 指向 Gateway。
+WinForms 与 Gateway 共用数据库领域配置（`DomainsSource=Database`），也可将 `custom.endpoint` 指向 Gateway。
 
 ### 本地数据
 
@@ -454,7 +404,7 @@ GET /v1/health
 
 ```http
 GET /v1/domains
-GET /v1/domains/{domainId}
+POST /v1/domains/reload
 Authorization: Bearer demo-token
 ```
 
@@ -526,9 +476,9 @@ dotnet publish src/DataChat.Gateway -c Release -o ./publish/gateway
 | HTTPS | 前置 Nginx / IIS 终止 TLS |
 | Coze 会话映射 | 默认内存；多实例部署请实现 `ICozeConversationStore`（Redis） |
 
-### Web 嵌入
+### Web 客户端
 
-将 `datachat-embed.js` 发布到 CDN 或静态资源目录；`gatewayUrl` 指向生产 Gateway HTTPS 地址。
+发布 `web/chat-ui/dist/` 到静态站点或随 WinForms/CefSharp 打包；构建时设置 `VITE_GATEWAY_URL` 为生产 Gateway HTTPS 地址。
 
 ### 端口占用
 
@@ -544,13 +494,13 @@ taskkill /PID <PID> /F
 ### Web 报 `[错误] Failed to fetch`
 
 1. Gateway 是否已启动（5080）  
-2. demo 是否通过 `http://127.0.0.1:5500` 打开（非 `file://`）  
+2. `chat-ui` 是否通过 `http://127.0.0.1:5173` 或正确配置的 `VITE_GATEWAY_URL` 访问（非 `file://` 且无跨域）  
 3. Token 是否为 `ValidTokens` 中的值  
-4. 若曾遇 CORS 问题，确认 Gateway 已启用 `UseCors` 且 OPTIONS 预检放行（当前版本已修复）
+4. 若遇 CORS，确认 Gateway `AllowedOrigins` 包含前端来源
 
 ### DB-GPT 报模型不存在
 
-检查 `domains.json` 中 `model` 是否与实例一致。查询：
+检查 `dc_domain.model` 是否与 DB-GPT 实例一致。查询：
 
 ```powershell
 curl.exe http://42.193.110.76:5670/api/v2/serve/model/models
@@ -559,7 +509,7 @@ curl.exe http://42.193.110.76:5670/api/v2/serve/model/models
 ### 数据问数无表格
 
 - 确认 `datasourceId` 为数据源**名称**  
-- `chat_data` 场景依赖 DB-GPT 非流式 `<chart-view>` 响应；embed 会渲染 Markdown 表格  
+- `chat_data` 场景依赖 DB-GPT 非流式 `<chart-view>` 响应；`chat-ui` 以 Markdown 展示表格  
 
 ### 对话不是流式
 
@@ -568,7 +518,7 @@ curl.exe http://42.193.110.76:5670/api/v2/serve/model/models
 
 ### Coze 报未配置密钥
 
-在 `appsettings.json` 填写 `ApiKeys:coze-main`，并与 `domains.json` 中 `apiKeyRef` 一致。
+在 `appsettings.json` 填写 `ApiKeys:coze-main`，并与 `dc_domain.provider_options_json` 中 `apiKeyRef` 一致。
 
 ### 5080 端口被占用
 
@@ -581,16 +531,14 @@ curl.exe http://42.193.110.76:5670/api/v2/serve/model/models
 ```
 AIHUB/
 ├── README.md                          # 本文档
+├── config/                            # domains.json.example 等领域配置样例
+├── db/                                # 建表 SQL（sqlserver / mysql / sqlite）
 ├── docs/
 │   ├── DESIGN-WinForms-DataChat.md    # WinForms 详细设计
-│   ├── DESIGN-Web-Embed.md            # Web 嵌入设计
 │   ├── API-Gateway.md                 # Gateway API 详表
 │   └── DB-GPT-API-Coverage.md         # DB-GPT 对接矩阵
 ├── web/
-│   ├── chat-ui/                       # Vue 3 + MateChat 全屏对话客户端
-│   └── embed/
-│       ├── datachat-embed.js          # 可嵌入侧栏组件
-│       └── demo.html                  # 专利系统风格演示页
+│   └── chat-ui/                       # Vue 3 客户端（含 src/ui 自研对话组件）
 └── src/
     ├── DataChat.Core                  # 实体、接口、Orchestrator、配置模型
     ├── DataChat.Application           # 应用层 ChatService
@@ -620,8 +568,10 @@ AIHUB/
 | 文档 | 内容 |
 |------|------|
 | [DESIGN-WinForms-DataChat.md](docs/DESIGN-WinForms-DataChat.md) | 桌面端架构、SQLite、里程碑 |
-| [DESIGN-Web-Embed.md](docs/DESIGN-Web-Embed.md) | Shadow DOM、布局、SSE 协议 |
+| [web/chat-ui/README.md](web/chat-ui/README.md) | Web 客户端、CefSharp、`@` / `/coze` |
 | [API-Gateway.md](docs/API-Gateway.md) | 完整 REST 列表 |
+| [Domains-Database.md](docs/Domains-Database.md) | 领域库表、SqlSugar、运维 |
+| [db/README.md](db/README.md) | 各数据库 DDL 与种子脚本 |
 | [DB-GPT-API-Coverage.md](docs/DB-GPT-API-Coverage.md) | 已对接 / 未对接 API |
 | [DB-GPT 官方文档](http://docs.dbgpt.cn/) | 部署与 API |
 | [扣子 Open API](https://www.coze.cn/docs/developer_guides/coze_api_overview) | Coze 鉴权与 Bot 对话 |

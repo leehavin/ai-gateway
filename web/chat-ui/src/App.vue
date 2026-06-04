@@ -1,17 +1,38 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Button } from 'vue-devui/button'
-import 'vue-devui/button/style.css'
 import AppHeader from './components/AppHeader.vue'
+import AssistantMessage from './components/AssistantMessage.vue'
+import ChatParamsPanel from './components/ChatParamsPanel.vue'
+import ChatComposer from './components/ChatComposer.vue'
 import HistoryPanel from './components/HistoryPanel.vue'
+import MessageActions from './components/MessageActions.vue'
 import { useAttachments } from './composables/useAttachments'
 import { useChat } from './composables/useChat'
+import { useChatParameters } from './composables/useChatParameters'
 import { useDomains } from './composables/useDomains'
 import { useHistory } from './composables/useHistory'
+import { exportSessionJson, exportSessionMarkdown, exportSessionPdf } from './utils/exportChat'
 import { BRAND } from './constants/brand'
 import { useLayout } from './composables/useLayout'
+import { useQuoteReply } from './composables/useQuoteReply'
+import {
+  parseAttachmentNamesFromContent,
+  stripAttachmentNote,
+} from './utils/composerTokens'
+import type { ChatMessage } from './types'
+import type { ChatGenerationParameters } from './types/chatParams'
+import {
+  DcChatFooter,
+  DcChatLayout,
+  DcChatScroll,
+  DcFileChipList,
+  DcIntroduction,
+  DcMessageBubble,
+  DcPromptChips,
+  type PromptItem,
+} from './ui'
 
-const { domains, health, loading, error, domainId, refresh } = useDomains()
+const { domains, cozeBots, health, loading, error, domainId, refresh } = useDomains()
 const history = useHistory(domainId)
 const {
   searchKey,
@@ -22,11 +43,25 @@ const {
 } = history
 const activeDomain = computed(() => domains.value.find((d) => d.id === domainId.value))
 const attachments = useAttachments()
-const { fileItems, uploadOptions, hasUploading, getDropContainer } = attachments
+const { fileItems, hasUploading, getDropContainer, onHiddenFileChange, openFilePicker, addFiles } =
+  attachments
+
+function bindFileInput(el: unknown) {
+  attachments.fileInputEl.value = el instanceof HTMLInputElement ? el : null
+}
 
 function bindDropZone(el: unknown) {
   attachments.dropZoneEl.value = el instanceof HTMLElement ? el : null
 }
+
+const {
+  params: chatParams,
+  panelOpen: paramsPanelOpen,
+  applyParams: applyChatParams,
+  resetDefaults: resetChatParams,
+  togglePanel: toggleParamsPanel,
+  closePanel: closeParamsPanel,
+} = useChatParameters(domainId)
 
 const {
   session,
@@ -42,7 +77,60 @@ const {
   loadSessionById,
   applySession,
   onSubmit,
-} = useChat(domainId, activeDomain, history, attachments)
+  markPreserveInputOnNextDomainSwitch,
+  stopGenerating,
+  regenerateAssistant,
+  startEditUserMessage,
+  cancelEditUserMessage,
+  copyMessage,
+  setMessageFeedback,
+  canRegenerateAssistant,
+  canEditUserMessage,
+  isEditing,
+  toast,
+  showToast,
+  composerFocusNonce,
+  hasHistory,
+} = useChat(domainId, activeDomain, history, attachments, chatParams)
+
+const { historyList, renameSessionTitle, togglePin } = history
+
+const { quotePreview, applyQuote, clearQuotePreview } = useQuoteReply(
+  inputValue,
+  () => composerFocusNonce.value++
+)
+
+function userMessageText(msg: ChatMessage) {
+  return stripAttachmentNote(msg.content)
+}
+
+function userMessageAttachments(msg: ChatMessage): { name: string }[] {
+  if (msg.attachments?.length) return msg.attachments.map((a) => ({ name: a.name }))
+  return parseAttachmentNamesFromContent(msg.content).map((name) => ({ name }))
+}
+
+function userMessageHasBody(msg: ChatMessage) {
+  return !!userMessageText(msg).trim() || userMessageAttachments(msg).length > 0
+}
+
+function onQuoteAssistant(msg: ChatMessage) {
+  const sel = window.getSelection()?.toString().trim()
+  if (sel) applyQuote(sel)
+  else if (msg.content.trim()) applyQuote(msg.content.trim().slice(0, 400))
+}
+
+function onComposerDomainChange(id: string) {
+  markPreserveInputOnNextDomainSwitch()
+  domainId.value = id
+}
+
+function onComposerNewChat() {
+  const firstCoze = domains.value.find((d) => d.provider === 'coze')
+  if (firstCoze && firstCoze.id !== domainId.value) {
+    domainId.value = firstCoze.id
+  }
+  newConversation()
+}
 
 const contentRef = ref<{ scrollToBottom?: () => void } | null>(null)
 
@@ -55,20 +143,65 @@ function handleSubmit(text?: string) {
   void onSubmit(typeof text === 'string' ? text : inputValue.value)
 }
 
-function onRemoveFile(file: { uid?: number }) {
-  fileItems.value = fileItems.value.filter((f: { uid?: number }) => f.uid !== file.uid)
+function onRemoveFile(file: { uid: number }) {
+  fileItems.value = fileItems.value.filter((f) => f.uid !== file.uid)
 }
 
 function onSelectHistory(id: string) {
-  loadSessionById(id)
+  void loadSessionById(id)
 }
 
-function onDeleteHistory(id: string) {
-  applySession(history.removeSession(id))
+async function onDeleteHistory(id: string) {
+  applySession(await history.removeSession(id))
 }
 
 const headerTitle = computed(() => activeDomain.value?.displayName ?? 'DataChat')
 const { isNarrow } = useLayout()
+
+const canExportSession = computed(
+  () => session.value.messages.some((m) => !m.loading && (m.content.trim() || m.thinking?.trim()))
+)
+
+const exportMeta = computed(() => {
+  const meta = historyList.value.find((s) => s.id === session.value.id)
+  const firstUser = session.value.messages.find((m) => m.role === 'user' && m.content.trim())
+  const title =
+    meta?.title?.trim() ||
+    (firstUser ? firstUser.content.trim().slice(0, 48) : 'DataChat 对话')
+  return {
+    title,
+    domainId: domainId.value,
+    domainName: activeDomain.value?.displayName ?? domainId.value,
+  }
+})
+
+function onExportMarkdown() {
+  if (!canExportSession.value) return
+  exportSessionMarkdown(session.value, exportMeta.value)
+  showToast('已导出 Markdown')
+}
+
+function onExportJson() {
+  if (!canExportSession.value) return
+  exportSessionJson(session.value, exportMeta.value)
+  showToast('已导出 JSON')
+}
+
+function onExportPdf() {
+  if (!canExportSession.value) return
+  try {
+    exportSessionPdf(session.value, exportMeta.value)
+    showToast('请在打印窗口中选择「另存为 PDF」')
+  } catch (e) {
+    showToast(e instanceof Error ? e.message : '导出 PDF 失败')
+  }
+}
+
+function onApplyChatParams(v: ChatGenerationParameters) {
+  applyChatParams(v)
+  closeParamsPanel()
+  showToast('生成参数已保存')
+}
 </script>
 
 <template>
@@ -81,88 +214,153 @@ const { isNarrow } = useLayout()
       @update:search-key="(v) => (searchKey = v)"
       @select="onSelectHistory"
       @delete="onDeleteHistory"
+      @rename="(id, title) => renameSessionTitle(id, title)"
+      @pin="(id) => togglePin(id)"
       @new-chat="newConversation"
       @collapse="toggleAside"
     />
 
     <div v-if="isNarrow && asideExpanded" class="history-backdrop" @click="toggleAside()" />
 
+    <button
+      v-if="!asideExpanded && !isNarrow"
+      type="button"
+      class="history-expand-rail"
+      title="展开对话历史"
+      aria-label="展开对话历史"
+      @click="toggleAside()"
+    >
+      <i class="icon-list-view"></i>
+      <span class="history-expand-label">历史</span>
+    </button>
+
     <div :ref="bindDropZone" class="chat-stage">
       <AppHeader
         :title="headerTitle"
         :domains="domains"
         :domain-id="domainId"
+        :active-provider="activeDomain?.provider"
         :loading="loading"
         :error="error"
         :health="health"
-        :show-menu="isNarrow"
+        :show-menu="isNarrow || !asideExpanded"
+        :can-export="canExportSession"
+        :params-open="paramsPanelOpen"
         @update:domain-id="(v) => (domainId = v)"
         @refresh="refresh"
         @toggle-menu="toggleAside"
         @toggle-history="toggleAside"
+        @open-params="toggleParamsPanel"
+        @export-markdown="onExportMarkdown"
+        @export-json="onExportJson"
+        @export-pdf="onExportPdf"
+        @coze-new-chat="onComposerNewChat"
       />
 
-      <McLayout class="chat-main">
-        <McLayoutContent
+      <DcChatLayout class="chat-main">
+        <DcChatScroll
           v-if="startPage"
           ref="contentRef"
-          class="chat-body intro-pane dc-scroll"
+          class="chat-body intro-pane"
           :auto-scroll="false"
         >
           <div class="welcome-card">
-            <McIntroduction
+            <DcIntroduction
               :logo-img="BRAND.logo"
               :logo-width="148"
               :title="BRAND.name"
               :sub-title="greetText"
               :description="description"
             />
-            <McPrompt
+            <DcPromptChips
               v-if="introPrompt.list.length"
               :list="introPrompt.list"
               :direction="introPrompt.direction"
               class="intro-prompt"
-              @item-click="(e: { label: string }) => handleSubmit(e.label)"
+              @item-click="(e: PromptItem) => handleSubmit(e.label)"
             />
             <p v-if="error" class="alert-banner">
               <i class="icon-info-o"></i>
-              无法连接 Gateway：{{ error }}。请先运行
-              <code>dotnet run</code>（DataChat.Gateway :5080）
+              服务暂时不可用，请
+              <button class="link-btn" @click="refresh">点击重试</button>
+              或联系管理员。
             </p>
           </div>
-        </McLayoutContent>
+        </DcChatScroll>
 
-        <McLayoutContent
+        <DcChatScroll
           v-else
           ref="contentRef"
-          class="chat-body messages-pane dc-scroll"
+          class="chat-body messages-pane"
           auto-scroll
           show-scroll-arrow
         >
           <div class="messages-inner">
-            <template v-for="msg in session.messages" :key="msg.id">
-              <McBubble
-                v-if="msg.role === 'user'"
-                :content="msg.content"
-                align="right"
-                :avatar-config="{ imgSrc: 'https://matechat.gitcode.com/png/demo/userAvatar.svg' }"
-              />
-              <McBubble
+            <div v-if="session.messages.length === 0" class="compose-empty-hint">
+              <template v-if="!hasHistory">
+                <img class="compose-logo" :src="BRAND.logo" :alt="BRAND.name" width="120" />
+                <h2 class="compose-greet">{{ greetText }}</h2>
+                <p v-if="description[0]" class="compose-desc">{{ description[0] }}</p>
+                <DcPromptChips
+                  v-if="introPrompt.list.length"
+                  :list="introPrompt.list"
+                  :direction="introPrompt.direction"
+                  class="compose-prompts"
+                  @item-click="(e: PromptItem) => handleSubmit(e.label)"
+                />
+              </template>
+              <p v-else class="compose-ready">新对话已就绪，在下方输入问题即可开始。</p>
+              <p v-if="error" class="compose-empty-warn">
+                <i class="icon-info-o"></i>
+                服务暂时不可用，请
+                <button class="link-btn" @click="refresh">点击重试</button>
+                或联系管理员。
+              </p>
+            </div>
+            <template v-for="(msg, msgIdx) in session.messages" :key="msg.id">
+              <div v-if="msg.role === 'user'" class="message-row message-row--user">
+                <div class="user-message-wrap">
+                  <DcMessageBubble
+                    :content="userMessageText(msg)"
+                    :attachments="userMessageAttachments(msg)"
+                    align="right"
+                    :avatar-config="{ imgSrc: BRAND.userAvatar }"
+                  />
+                  <MessageActions
+                    v-if="userMessageHasBody(msg)"
+                    placement="toolbar"
+                    :actions="['copy', 'edit']"
+                    :disabled="!canEditUserMessage(msg)"
+                    @copy="copyMessage(msg.id)"
+                    @edit="startEditUserMessage(msg.id)"
+                  />
+                </div>
+              </div>
+              <AssistantMessage
                 v-else
-                :content="msg.loading && !msg.content ? '正在思考…' : msg.content"
+                :content="msg.content"
+                :thinking="msg.thinking"
+                :citations="msg.citations"
                 :loading="msg.loading"
-                :avatar-config="{ imgSrc: BRAND.logoIcon }"
+                :error="msg.error"
+                :feedback="msg.feedback"
+                :can-regenerate="canRegenerateAssistant(msg, msgIdx)"
+                show-actions
+                @copy="copyMessage(msg.id)"
+                @quote="onQuoteAssistant(msg)"
+                @regenerate="regenerateAssistant(msg.id)"
+                @feedback="(r) => setMessageFeedback(msg.id, r)"
               />
             </template>
           </div>
-        </McLayoutContent>
+        </DcChatScroll>
 
-        <div v-if="!startPage" class="quick-bar">
-          <McPrompt
+        <div v-if="!startPage && hasHistory" class="quick-bar">
+          <DcPromptChips
             v-if="simplePrompt.length"
             :list="simplePrompt"
             direction="horizontal"
-            @item-click="(e: { label: string }) => handleSubmit(e.label)"
+            @item-click="(e: PromptItem) => handleSubmit(e.label)"
           />
           <button
             type="button"
@@ -175,71 +373,72 @@ const { isNarrow } = useLayout()
           </button>
         </div>
 
-        <McLayoutSender class="composer-sender">
+        <DcChatFooter class="composer-sender">
+          <input
+            :ref="bindFileInput"
+            type="file"
+            class="hidden-file-input"
+            multiple
+            accept=".txt,.md,.csv,.json,.pdf,.png,.jpg,.jpeg,.webp,.gif,.doc,.docx,.xls,.xlsx"
+            @change="onHiddenFileChange"
+          />
           <div class="composer-shell">
             <div v-if="fileItems.length" class="file-list-wrap">
-              <McFileList :file-items="fileItems" context="input" @remove="onRemoveFile" />
+              <DcFileChipList :file-items="fileItems" @remove="onRemoveFile" />
+            </div>
+            <div v-if="quotePreview" class="quote-banner">
+              <span>已引用：{{ quotePreview }}</span>
+              <button type="button" class="quote-banner-clear" @click="clearQuotePreview">清除</button>
+            </div>
+            <div v-if="isEditing" class="edit-banner">
+              <span>正在编辑消息，发送后将从此处重新生成</span>
+              <button type="button" class="edit-banner-cancel" @click="cancelEditUserMessage">
+                取消
+              </button>
             </div>
             <div class="composer-card">
-              <McInput
-                :value="inputValue"
+              <ChatComposer
+                v-model="inputValue"
                 :placeholder="placeholder"
                 :max-length="2000"
-                :show-count="false"
                 :disabled="sending || !!error || hasUploading"
-                @change="(e: string) => (inputValue = e)"
+                :domains="domains"
+                :coze-bots="cozeBots"
+                :domain-id="domainId"
+                :active-provider="activeDomain?.provider"
+                :show-coze-shortcuts="activeDomain?.provider === 'coze'"
+                :get-drop-container="getDropContainer"
+                :focus-nonce="composerFocusNonce"
                 @submit="() => handleSubmit()"
-              >
-                <template #extra>
-                  <div class="input-foot-wrapper">
-                    <div class="input-foot-left">
-                      <McAttachment
-                        v-model="fileItems"
-                        :upload-options="uploadOptions"
-                        :max-count="5"
-                        :max-size="10"
-                        accept=".txt,.md,.csv,.json,.pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
-                        :multiple="true"
-                        :draggable="true"
-                        :get-drop-container="getDropContainer"
-                        drop-placeholder="松开鼠标即可上传文件"
-                      >
-                        <button
-                          type="button"
-                          class="foot-tool attach-tool"
-                          title="上传附件"
-                          :disabled="sending || !!error"
-                        >
-                          <i class="icon-add-file"></i>
-                          <span class="foot-tool-label">附件</span>
-                        </button>
-                      </McAttachment>
-                      <span class="input-foot-dividing-line" aria-hidden="true"></span>
-                      <span class="input-foot-maxlength">{{ inputValue.length }} / 2000</span>
-                    </div>
-                    <div class="input-foot-right">
-                      <Button
-                        icon="op-clearup"
-                        shape="round"
-                        size="sm"
-                        :disabled="!inputValue || sending"
-                        @click="inputValue = ''"
-                      >
-                        清空
-                      </Button>
-                    </div>
-                  </div>
-                </template>
-              </McInput>
+                @update:domain-id="onComposerDomainChange"
+                @new-chat="onComposerNewChat"
+                @pick-files="openFilePicker"
+                @drop-files="(files) => addFiles(files)"
+                @paste-files="(files) => addFiles(files)"
+              />
+              <div v-if="sending" class="composer-stop-row">
+                <button type="button" class="btn-stop" @click="stopGenerating">停止生成</button>
+              </div>
             </div>
             <p class="composer-disclaimer">
-              AI 生成内容可能有误，请谨慎甄别 · 会话数据仅保存在本机浏览器
+              内容由 AI 生成，仅供参考
             </p>
           </div>
-        </McLayoutSender>
-      </McLayout>
+        </DcChatFooter>
+      </DcChatLayout>
     </div>
 
+    <ChatParamsPanel
+      :open="paramsPanelOpen"
+      :params="chatParams"
+      @close="closeParamsPanel"
+      @reset="resetChatParams"
+      @apply="onApplyChatParams"
+    />
+
+    <Transition name="toast-fade">
+      <div v-if="toast" class="app-toast" role="status">{{ toast }}</div>
+    </Transition>
   </div>
 </template>
 
@@ -258,6 +457,43 @@ const { isNarrow } = useLayout()
   z-index: 90;
   background: rgba(15, 23, 42, 0.4);
   backdrop-filter: blur(2px);
+}
+
+.history-expand-rail {
+  position: fixed;
+  left: 0;
+  top: 50%;
+  z-index: 95;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border: 1px solid var(--dc-border);
+  border-left: none;
+  border-radius: 0 var(--dc-radius-md) var(--dc-radius-md) 0;
+  background: #fff;
+  color: var(--dc-brand);
+  box-shadow: var(--dc-shadow-md);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.history-expand-rail:hover {
+  background: var(--dc-brand-soft);
+  box-shadow: var(--dc-shadow-lg);
+}
+
+.history-expand-rail i {
+  font-size: 18px;
+}
+
+.history-expand-label {
+  font-size: 11px;
+  font-weight: 600;
+  writing-mode: vertical-rl;
+  letter-spacing: 0.08em;
 }
 
 .chat-stage {
@@ -319,11 +555,16 @@ const { isNarrow } = useLayout()
   color: var(--dc-error);
 }
 
-.alert-banner code {
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.7);
-  font-size: 12px;
+.alert-banner .link-btn {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--dc-error);
+  font-size: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .messages-pane {
@@ -337,6 +578,167 @@ const { isNarrow } = useLayout()
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.message-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
+.message-row--user {
+  justify-content: flex-end;
+}
+
+.user-message-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: min(88%, 720px);
+  gap: 4px;
+}
+
+.user-message-wrap :deep(.dc-bubble-row) {
+  margin: 4px 0 0;
+  width: 100%;
+}
+
+.edit-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: var(--dc-radius-md);
+  background: var(--dc-brand-soft);
+  border: 1px solid rgba(94, 124, 224, 0.25);
+  font-size: 12px;
+  color: var(--dc-brand);
+}
+
+.edit-banner-cancel {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--dc-border);
+  border-radius: var(--dc-radius-pill);
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.edit-banner-cancel:hover {
+  border-color: rgba(94, 124, 224, 0.4);
+}
+
+.quote-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: var(--dc-radius-md);
+  background: #f0fdf4;
+  border: 1px solid rgba(22, 163, 74, 0.25);
+  font-size: 12px;
+  color: #166534;
+}
+
+.quote-banner-clear {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--dc-border);
+  border-radius: var(--dc-radius-pill);
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.app-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 300;
+  padding: 10px 18px;
+  border-radius: var(--dc-radius-pill);
+  background: rgba(37, 43, 58, 0.92);
+  color: #fff;
+  font-size: 13px;
+  box-shadow: var(--dc-shadow-lg);
+  pointer-events: none;
+}
+
+.toast-fade-enter-active,
+.toast-fade-leave-active {
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.toast-fade-enter-from,
+.toast-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+}
+
+.compose-empty-hint {
+  margin: 32px auto 24px;
+  max-width: var(--dc-chat-max);
+  width: 100%;
+  text-align: center;
+  color: var(--dc-text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.compose-logo {
+  object-fit: contain;
+}
+
+.compose-greet {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--dc-text);
+}
+
+.compose-desc {
+  margin: 0;
+  max-width: 520px;
+  color: var(--dc-text-secondary);
+}
+
+.compose-prompts {
+  width: 100%;
+  max-width: 720px;
+}
+
+.compose-ready {
+  margin: 24px 0 0;
+  font-size: 15px;
+  color: var(--dc-text-secondary);
+}
+
+.compose-empty-warn {
+  color: var(--dc-error);
+  font-size: 13px;
+}
+
+.compose-empty-warn .link-btn {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--dc-error);
+  font-size: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .quick-bar {
@@ -401,74 +803,33 @@ const { isNarrow } = useLayout()
   box-shadow: var(--dc-shadow-md);
 }
 
-.input-foot-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex: 1;
-  width: 100%;
-  min-width: 0;
-  gap: 12px;
+.hidden-file-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.input-foot-left {
+.composer-stop-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
+  justify-content: center;
+  margin-top: 8px;
 }
 
-.input-foot-right {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.foot-tool {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 6px;
-  border: none;
-  border-radius: var(--dc-radius-sm);
-  background: transparent;
-  color: var(--dc-text);
+.btn-stop {
+  padding: 6px 16px;
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  border-radius: var(--dc-radius-pill);
+  background: var(--dc-error-bg);
+  color: var(--dc-error);
   font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
 }
 
-.foot-tool:hover:not(:disabled) {
-  color: var(--dc-brand);
-  background: var(--dc-brand-soft);
-}
-
-.foot-tool:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.foot-tool i {
-  font-size: 16px;
-  color: var(--dc-brand);
-}
-
-.foot-tool-label {
-  white-space: nowrap;
-}
-
-.input-foot-dividing-line {
-  width: 1px;
-  height: 14px;
-  background: var(--dc-border-strong);
-  flex-shrink: 0;
-}
-
-.input-foot-maxlength {
-  font-size: 12px;
-  color: var(--dc-text-muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+.btn-stop:hover {
+  background: #fee2e2;
 }
 
 .composer-disclaimer {
@@ -480,10 +841,6 @@ const { isNarrow } = useLayout()
 }
 
 @media screen and (max-width: 860px) {
-  .foot-tool-label {
-    display: none;
-  }
-
   .messages-inner,
   .quick-bar {
     padding-left: 16px;

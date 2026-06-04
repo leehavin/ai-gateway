@@ -27,28 +27,6 @@ public sealed class DbgptDomainInfoDto
     public string? KnowledgeSpaceName { get; init; }
 }
 
-public sealed class DbgptAppItem
-{
-    public required string AppCode { get; init; }
-    public required string AppName { get; init; }
-    public string? AppDescribe { get; init; }
-}
-
-public sealed class DbgptDatasourceItem
-{
-    public required string Id { get; init; }
-    public required string Name { get; init; }
-    public string? Type { get; init; }
-}
-
-public sealed class DbgptKnowledgeSpaceItem
-{
-    public required string Id { get; init; }
-    public required string Name { get; init; }
-    public string? VectorType { get; init; }
-    public string? Description { get; init; }
-}
-
 public sealed class GatewayStatusDto
 {
     public required string Status { get; init; }
@@ -56,9 +34,5 @@ public sealed class GatewayStatusDto
     public bool UseMock { get; init; }
     public bool DbgptReachable { get; init; }
     public string? DbgptBaseUrl { get; init; }
-    public bool CozeReachable { get; init; }
-    public string? CozeEndpoint { get; init; }
-    public int CozeDomainCount { get; init; }
     public int DomainCount { get; init; }
-    public IReadOnlyList<string> SupportedDbgptChatModes { get; init; } = [];
 }

@@ -1,8 +1,31 @@
 <Solution>
-  <Project Path="src/DataChat.Core/DataChat.Core.csproj" />
-  <Project Path="src/DataChat.Application/DataChat.Application.csproj" />
-  <Project Path="src/DataChat.Infrastructure/DataChat.Infrastructure.csproj" />
-  <Project Path="src/DataChat.Providers/DataChat.Providers.csproj" />
-  <Project Path="src/DataChat.WinForms/DataChat.WinForms.csproj" />
-  <Project Path="src/DataChat.Gateway/DataChat.Gateway.csproj" />
+  <Folder Name="/src/">
+    <Project Path="src/DataChat.Core/DataChat.Core.csproj" />
+    <Project Path="src/DataChat.Gateway/DataChat.Gateway.csproj" />
+    <Project Path="src/DataChat.Infrastructure/DataChat.Infrastructure.csproj" />
+    <Project Path="src/DataChat.Providers/DataChat.Providers.csproj" />
+    <Project Path="src/DataChat.WinForms/DataChat.WinForms.csproj" />
+  </Folder>
+  <Folder Name="/docs/">
+    <File Path="docs/API-Gateway.md" />
+    <File Path="docs/DB-GPT-API-Coverage.md" />
+    <File Path="docs/Domains-Database.md" />
+    <File Path="docs/DESIGN-WinForms-DataChat.md" />
+  </Folder>
+  <Folder Name="/db/">
+    <File Path="db/README.md" />
+    <File Path="db/sqlserver/01-schema.sql" />
+    <File Path="db/sqlserver/02-seed-domains.sql" />
+    <File Path="db/mysql/01-schema.sql" />
+    <File Path="db/mysql/02-seed-domains.sql" />
+    <File Path="db/sqlite/01-schema.sql" />
+    <File Path="db/sqlite/02-seed-domains.sql" />
+  </Folder>
+  <Folder Name="/config/">
+    <File Path="config/domains.json.example" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+    <File Path=".gitignore" />
+  </Folder>
 </Solution>

@@ -1,0 +1,8 @@
+{
+  "ConnectionStrings": {
+    "DataChat": "Server=192.168.106.207,1433;Database=DataChat;User Id=sa;Password=YOUR_PASSWORD;TrustServerCertificate=True;Encrypt=False;"
+  },
+  "DomainsSource": "Database",
+  "Database:Provider": "SqlServer",
+  "SeedDomainsFromFileWhenEmpty": false
+}

@@ -1,11 +1,13 @@
 # =============================================================================
 # DataChat / AIHUB — GitHub 上传忽略规则
-# .NET 8 Gateway + WinForms + Vue 3 (web/chat-ui, web/embed)
+# .NET 8 Gateway + WinForms + Vue 3 (web/chat-ui)
 # =============================================================================
 
 # --- 密钥与本地配置（切勿提交到 GitHub）---
 **/appsettings.*.local.json
 **/appsettings.Local.json
+**/appsettings.Development.json
+**/appsettings.Staging.json
 **/secrets.json
 **/domains.local.json
 **/*.key

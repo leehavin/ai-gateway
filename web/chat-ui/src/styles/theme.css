@@ -63,9 +63,9 @@ body {
   background: #a8b3cf;
 }
 
-/* MateChat 布局微调（居中对话列） */
-.chat-stage .mc-layout-sender,
-.chat-stage .mc-input {
+/* 对话区底部输入列居中 */
+.chat-stage .dc-chat-footer,
+.chat-stage .composer-shell {
   max-width: var(--dc-chat-max);
   margin-left: auto;
   margin-right: auto;

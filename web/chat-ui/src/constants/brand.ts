@@ -2,6 +2,7 @@
 export const BRAND = {
   logo: '/logo.svg',
   logoIcon: '/logo-icon.svg',
+  userAvatar: '/user-avatar.svg',
   name: 'DataChat',
   tagline: '企业 AI 对话中台',
 } as const
