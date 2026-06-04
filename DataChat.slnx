@@ -6,6 +6,18 @@
     <Project Path="src/DataChat.Providers/DataChat.Providers.csproj" />
     <Project Path="src/DataChat.WinForms/DataChat.WinForms.csproj" />
   </Folder>
+  <Folder Name="/db/mysql/">
+    <File Path="db/mysql/01-schema.sql" />
+    <File Path="db/mysql/02-seed-domains.sql" />
+  </Folder>
+  <Folder Name="/db/sqlite/">
+    <File Path="db/sqlite/01-schema.sql" />
+    <File Path="db/sqlite/02-seed-domains.sql" />
+  </Folder>
+  <Folder Name="/db/sqlserver/">
+    <File Path="db/sqlserver/01-schema.sql" />
+    <File Path="db/sqlserver/02-seed-domains.sql" />
+  </Folder>
   <Folder Name="/docs/">
     <File Path="docs/API-Gateway.md" />
     <File Path="docs/DB-GPT-API-Coverage.md" />
@@ -14,12 +26,6 @@
   </Folder>
   <Folder Name="/db/">
     <File Path="db/README.md" />
-    <File Path="db/sqlserver/01-schema.sql" />
-    <File Path="db/sqlserver/02-seed-domains.sql" />
-    <File Path="db/mysql/01-schema.sql" />
-    <File Path="db/mysql/02-seed-domains.sql" />
-    <File Path="db/sqlite/01-schema.sql" />
-    <File Path="db/sqlite/02-seed-domains.sql" />
   </Folder>
   <Folder Name="/config/">
     <File Path="config/domains.json.example" />
