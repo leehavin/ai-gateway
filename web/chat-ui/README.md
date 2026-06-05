@@ -103,15 +103,27 @@ npm run build
 
 将 `dist/` 作为本地静态服务或 WebView 根目录；生产构建时设置 `VITE_GATEWAY_URL`。
 
-### 注入 Gateway Token（三选一）
+### 注入用户身份（WinForms / WebView2）
 
 | 方式 | 说明 |
 |------|------|
-| 构建时 | `.env.production` 中 `VITE_DATACHAT_TOKEN=...` |
-| 加载前脚本 | `window.__DATACHAT_TOKEN__='pat_xxx'` |
-| 运行时 postMessage | `{ type: 'datachat:setToken', token: '...' }` |
+| 加载前脚本 | `__DATACHAT_TOKEN__` + `__DATACHAT_USER_ID__` + `__DATACHAT_USER_NAME__` |
+| 运行时 postMessage | `{ type: 'datachat:setUser', userId, userName, token }` |
+| 宿主换 Token | `POST /v1/auth/token`（`ServiceKey` + `userId`） |
+
+仅 Token、无用户信息：`{ type: 'datachat:setToken', token: '...' }`（兼容旧集成）。
 
 页面加载后会向父窗口发送 `{ type: 'datachat:ready' }`。
+
+### 独立 Web 登录
+
+配置 Gateway `Auth:SigningKey` 与 `Auth:Users` 后，设置 `.env`：
+
+```
+VITE_REQUIRE_LOGIN=true
+```
+
+浏览器将显示登录页，调用 `POST /v1/auth/login`。
 
 ## 附件上传
 

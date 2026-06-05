@@ -1,10 +1,13 @@
-import { computed, onMounted, ref, watch, type Ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch, type Ref } from 'vue'
+import { toDisplayUser } from '../api/auth'
 import { submitMessageFeedback } from '../api/feedback'
 import { buildHistory, streamChat } from '../api/gateway'
+import { getHostUser, onHostUserChange } from '../bridge/hostAuth'
+import { useCozeChat } from '../providers/coze'
 import { normalizeChatParams, type ChatGenerationParameters } from '../types/chatParams'
 import { newSessionId } from '../utils/session'
 import type { ChatAttachmentRef } from '../types/attachments'
-import type { ChatMessage, ChatSession, DomainItem } from '../types'
+import type { ChatMessage, ChatSession, CozeWorkflowItem, DomainItem } from '../types'
 import { copyToClipboard } from '../utils/clipboard'
 import {
   normalizeOutgoingMessage,
@@ -34,7 +37,8 @@ export function useChat(
   activeDomain: Ref<DomainItem | undefined>,
   history: ReturnType<typeof useHistory>,
   attachments: ReturnType<typeof useAttachments>,
-  chatParams: Ref<ChatGenerationParameters>
+  chatParams: Ref<ChatGenerationParameters>,
+  cozeWorkflows: Ref<CozeWorkflowItem[]>
 ) {
   const session = ref<ChatSession>(emptySession())
   const inputValue = ref('')
@@ -43,6 +47,7 @@ export function useChat(
   const toast = ref('')
 
   let toastTimer: ReturnType<typeof setTimeout> | null = null
+  let abortCtrl: AbortController | null = null
 
   function showToast(message: string) {
     toast.value = message
@@ -54,26 +59,47 @@ export function useChat(
   }
 
   const hasHistory = computed(() => history.historyList.value.length > 0)
-
-  /** 有历史记录且当前会话为空时显示欢迎页 */
   const startPage = ref(false)
-
-  let abortCtrl: AbortController | null = null
   const isEditing = computed(() => !!editingUserId.value)
+  const composerFocusNonce = ref(0)
 
-  onMounted(() => {
-    if (!startPage.value) composerFocusNonce.value++
+  const isCozeDomain = computed(() => activeDomain.value?.provider === 'coze')
+
+  const cozeChat = useCozeChat({
+    enabled: isCozeDomain,
+    domainId,
+    session,
+    inputValue,
+    sending,
+    composerFocusNonce,
+    showToast,
+    closeAsideIfNarrow: () => history.closeAsideIfNarrow(),
+    refreshHistory: () => void history.refresh(),
+    setStartPage: (v) => {
+      startPage.value = v
+    },
+    getAbortSignal: () => abortCtrl?.signal,
+    setAbortController: (c) => {
+      abortCtrl = c
+    },
   })
 
-  const userName = ref('您')
+  const userName = ref(toDisplayUser(getHostUser()))
   const greetText = computed(() => `${userName.value}，${timeGreeting()}好！`)
 
-  const description = computed(() =>
-    [
-      activeDomain.value?.displayName ? `当前领域：${activeDomain.value.displayName}` : null,
-      activeDomain.value?.description ?? null,
-    ].filter((s): s is string => s !== null && s !== '')
-  )
+  let offHostUser = () => {}
+  onMounted(() => {
+    if (!startPage.value) composerFocusNonce.value++
+    offHostUser = onHostUserChange(() => {
+      userName.value = toDisplayUser(getHostUser())
+    })
+  })
+  onUnmounted(() => offHostUser())
+
+  const description = computed(() => {
+    const name = activeDomain.value?.displayName
+    return name ? [`当前领域：${name}`] : []
+  })
 
   const introPrompt = computed(() => {
     const list = activeDomain.value?.quickPrompts ?? []
@@ -99,15 +125,12 @@ export function useChat(
   )
 
   const placeholder = computed(() => {
+    const cozeHint = cozeChat.placeholderHint.value
+    if (cozeHint) return cozeHint
     if (editingUserId.value) return '修改后发送，将从此处重新生成回复'
     if (activeDomain.value?.placeholder) return activeDomain.value.placeholder
-    if (activeDomain.value?.provider === 'coze') {
-      return '输入问题，@ 切换 Bot；/ 打开 Coze 菜单'
-    }
-    return '输入问题，@ 可切换智能体'
+    return '输入问题；/ 命令 · @ 切换智能体'
   })
-
-  const composerFocusNonce = ref(0)
 
   function applySession(
     next: ChatSession,
@@ -124,12 +147,12 @@ export function useChat(
       : next.messages.length === 0 && hasHistory.value
     if (!options?.keepInput) inputValue.value = ''
     attachments.clearAttachments()
+    cozeChat.clearState()
     if (options?.enterCompose) composerFocusNonce.value++
   }
 
   const preserveInputNextDomainSwitch = ref(false)
 
-  /** 首次加载历史列表后自动打开最近一条会话 */
   let historyInitialized = false
   watch(history.historyList, async (list) => {
     if (historyInitialized) return
@@ -140,11 +163,11 @@ export function useChat(
     }
   })
 
-  /** 切换领域时重置，让上面的 watch 重新触发初始加载 */
   watch(domainId, () => {
     historyInitialized = false
     session.value = emptySession()
     startPage.value = false
+    cozeChat.clearState()
     if (!preserveInputNextDomainSwitch.value) inputValue.value = ''
     preserveInputNextDomainSwitch.value = false
   })
@@ -179,7 +202,6 @@ export function useChat(
     files: ChatAttachmentRef[]
   ) {
     const historyMsgs = buildStreamHistory(apiUserText, assistant.id)
-
     abortCtrl = new AbortController()
     try {
       await streamChat(
@@ -212,7 +234,6 @@ export function useChat(
       sending.value = false
       assistant.loading = false
       abortCtrl = null
-      /* 流结束后服务端已自动持久化，刷新侧栏历史列表 */
       void history.refresh()
     }
   }
@@ -238,9 +259,12 @@ export function useChat(
       return
     }
 
+    if (await cozeChat.tryHandleSubmit(raw)) return
+
     const msg = normalizeOutgoingMessage(raw)
     const files = attachments.readyAttachments.value
     if ((!msg && !files.length) || sending.value || attachments.hasUploading.value) return
+
     const displayContent = (msg || '请根据附件回答') + attachments.formatAttachmentNote(files)
     inputValue.value = ''
     startPage.value = false
@@ -274,7 +298,6 @@ export function useChat(
     await streamAfterUserMessage(pair.userMsg.content, pair.userMsg.attachments ?? [])
   }
 
-  /** @deprecated 使用 regenerateAssistant */
   async function retryAssistant(assistantId: string) {
     await regenerateAssistant(assistantId)
   }
@@ -354,6 +377,10 @@ export function useChat(
     }
   }
 
+  function runCozeWorkflow(workflowId: string) {
+    cozeChat.queueWorkflowById(workflowId, cozeWorkflows.value)
+  }
+
   return {
     session,
     inputValue,
@@ -385,5 +412,8 @@ export function useChat(
     toast,
     showToast,
     composerFocusNonce,
+    providerBanners: cozeChat.banners,
+    clearProviderState: cozeChat.clearState,
+    runCozeWorkflow,
   }
 }

@@ -2,6 +2,7 @@ using DataChat.Core.Abstractions;
 using DataChat.Core.Chat;
 using DataChat.Core.Configuration;
 using DataChat.Core.Entities;
+using DataChat.Gateway.Auth;
 using DataChat.Gateway.Configuration;
 using DataChat.Gateway.Models;
 using Microsoft.Extensions.Options;
@@ -13,15 +14,18 @@ public sealed class GatewaySessionService
     private readonly IConversationRepository _repository;
     private readonly IDomainCatalog _domains;
     private readonly GatewayOptions _options;
+    private readonly ICurrentUserService _currentUser;
 
     public GatewaySessionService(
         IConversationRepository repository,
         IDomainCatalog domains,
-        IOptions<GatewayOptions> options)
+        IOptions<GatewayOptions> options,
+        ICurrentUserService currentUser)
     {
         _repository = repository;
         _domains = domains;
         _options = options.Value;
+        _currentUser = currentUser;
     }
 
     public bool IsEnabled => _options.EnableSessionApi;
@@ -30,7 +34,7 @@ public sealed class GatewaySessionService
         string? domainId,
         CancellationToken cancellationToken)
     {
-        var sessions = await _repository.ListSessionsAsync(cancellationToken);
+        var sessions = await _repository.ListSessionsAsync(_currentUser.UserId, cancellationToken);
         var query = sessions.AsEnumerable();
         if (!string.IsNullOrWhiteSpace(domainId))
             query = query.Where(s => string.Equals(s.DomainId, domainId, StringComparison.OrdinalIgnoreCase));
@@ -56,7 +60,7 @@ public sealed class GatewaySessionService
 
     public async Task<SessionDetailDto?> GetAsync(string id, CancellationToken cancellationToken)
     {
-        var session = await _repository.GetSessionAsync(id, cancellationToken);
+        var session = await _repository.GetSessionAsync(id, _currentUser.UserId, cancellationToken);
         if (session is null) return null;
         var messages = await _repository.GetMessagesAsync(id, cancellationToken);
         return new SessionDetailDto
@@ -92,7 +96,8 @@ public sealed class GatewaySessionService
             Model = domain.Model,
             ResourceId = domain.Dbgpt?.AppId ?? domain.Dbgpt?.DatasourceId,
             CreatedAt = now,
-            UpdatedAt = now
+            UpdatedAt = now,
+            UserId = _currentUser.UserId
         };
         await _repository.SaveSessionAsync(session, cancellationToken);
         return new SessionDetailDto
@@ -115,7 +120,7 @@ public sealed class GatewaySessionService
             ?? throw new ArgumentException("未知领域: " + request.DomainId);
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var existing = await _repository.GetSessionAsync(id, cancellationToken);
+        var existing = await _repository.GetSessionAsync(id, _currentUser.UserId, cancellationToken);
         var session = new ChatSession
         {
             Id = id,
@@ -127,7 +132,8 @@ public sealed class GatewaySessionService
             Model = domain.Model,
             ResourceId = domain.Dbgpt?.AppId ?? domain.Dbgpt?.DatasourceId,
             CreatedAt = existing?.CreatedAt ?? now,
-            UpdatedAt = now
+            UpdatedAt = now,
+            UserId = existing?.UserId ?? _currentUser.UserId
         };
         await _repository.SaveSessionAsync(session, cancellationToken);
 
@@ -150,8 +156,12 @@ public sealed class GatewaySessionService
         return await GetAsync(id, cancellationToken);
     }
 
-    public Task DeleteAsync(string id, CancellationToken cancellationToken) =>
-        _repository.DeleteSessionAsync(id, cancellationToken);
+    public async Task DeleteAsync(string id, CancellationToken cancellationToken)
+    {
+        var session = await _repository.GetSessionAsync(id, _currentUser.UserId, cancellationToken);
+        if (session is null) return;
+        await _repository.DeleteSessionAsync(id, cancellationToken);
+    }
 
     public async Task PersistStreamTurnAsync(
         ChatStreamRequest request,
@@ -170,7 +180,7 @@ public sealed class GatewaySessionService
 
         var sessionId = request.SessionId;
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var existing = await _repository.GetSessionAsync(sessionId, cancellationToken);
+        var existing = await _repository.GetSessionAsync(sessionId, _currentUser.UserId, cancellationToken);
         var title = existing?.Title ?? domain.DisplayName;
         if ((existing is null || title == domain.DisplayName) && !string.IsNullOrWhiteSpace(request.Message))
         {
@@ -187,7 +197,8 @@ public sealed class GatewaySessionService
             Model = domain.Model,
             ResourceId = domain.Dbgpt?.AppId ?? domain.Dbgpt?.DatasourceId,
             CreatedAt = existing?.CreatedAt ?? now,
-            UpdatedAt = now
+            UpdatedAt = now,
+            UserId = existing?.UserId ?? _currentUser.UserId
         };
         await _repository.SaveSessionAsync(session, cancellationToken);
 

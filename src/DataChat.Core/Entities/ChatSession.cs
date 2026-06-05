@@ -10,4 +10,6 @@ public sealed class ChatSession
     public string? ResourceId { get; set; }
     public long CreatedAt { get; init; }
     public long UpdatedAt { get; set; }
+    /// <summary>所属用户；为空表示历史共享会话（静态 Token 模式）。</summary>
+    public string? UserId { get; set; }
 }

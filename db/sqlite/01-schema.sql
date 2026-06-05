@@ -45,10 +45,12 @@ CREATE TABLE chat_session (
     model           TEXT,
     resource_id     TEXT,
     created_at      INTEGER NOT NULL,
-    updated_at      INTEGER NOT NULL
+    updated_at      INTEGER NOT NULL,
+    user_id         TEXT
 );
 
 CREATE INDEX IX_chat_session_updated_at ON chat_session (updated_at DESC);
+CREATE INDEX IX_chat_session_user_id ON chat_session (user_id);
 
 CREATE TABLE chat_message (
     id              TEXT    NOT NULL PRIMARY KEY,

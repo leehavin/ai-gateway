@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, toRef, watch } from 'vue'
+import { nextTick, ref, toRef, watch } from 'vue'
 import { Button } from 'vue-devui/button'
 import 'vue-devui/button/style.css'
 import { DcAttachmentTrigger } from '../ui'
 import { useComposerCommands, type CommandMenuItem } from '../composables/useComposerCommands'
-import type { CozeBotSummary, DomainItem } from '../types'
+import type { SlashMenuContext } from '../providers'
 import ComposerCommandMenu from './ComposerCommandMenu.vue'
 
 const props = defineProps<{
@@ -12,12 +12,7 @@ const props = defineProps<{
   placeholder: string
   disabled: boolean
   maxLength: number
-  domains: DomainItem[]
-  cozeBots: CozeBotSummary[]
-  domainId: string
-  activeProvider?: string
-  /** Coze 领域时显示 / 快捷入口 */
-  showCozeShortcuts?: boolean
+  slashMenuContext: SlashMenuContext
   getDropContainer: () => HTMLElement
   focusNonce?: number
 }>()
@@ -30,6 +25,8 @@ const emit = defineEmits<{
   'update:domainId': [id: string]
   'new-chat': []
   'pick-files': []
+  'run-workflow': [workflowId: string]
+  'refresh-workflows': []
 }>()
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
@@ -48,6 +45,7 @@ const {
   menuOpen,
   menuItems,
   groupedMenuItems,
+  slashMenuTitle,
   setCursor,
   clampActiveIndex,
   moveActive,
@@ -55,16 +53,7 @@ const {
   applyMentionInsert,
   removeTriggerText,
   resetActiveIndex,
-} = useComposerCommands(
-  inputRef,
-  toRef(props, 'domains'),
-  toRef(props, 'cozeBots'),
-  toRef(props, 'activeProvider')
-)
-
-const slashMenuTitle = computed(() =>
-  props.activeProvider === 'coze' ? 'Coze 命令' : '快捷命令'
-)
+} = useComposerCommands(inputRef, toRef(props, 'slashMenuContext'))
 
 watch(menuItems, () => {
   resetActiveIndex()
@@ -106,7 +95,44 @@ function focusTextarea() {
   textareaRef.value?.focus()
 }
 
+function insertSlashPrefix(prefix?: string, replaceTrigger = false) {
+  // 从菜单选中时保留 /coze 无尾空格，便于继续展开子命令
+  const token = prefix ? `/${prefix}${replaceTrigger ? '' : ' '}` : '/'
+  let base = inputRef.value
+
+  if (replaceTrigger && trigger.value) {
+    base = inputRef.value.slice(0, trigger.value.start) + inputRef.value.slice(trigger.value.end)
+  } else if (!prefix) {
+    const t = trigger.value
+    if (t?.kind === 'slash' && !t.query) {
+      nextTick(() => {
+        const el = textareaRef.value
+        if (el) {
+          const pos = el.selectionStart ?? inputRef.value.length
+          el.selectionStart = el.selectionEnd = pos
+          setCursor(pos)
+          focusTextarea()
+        }
+      })
+      return
+    }
+  }
+
+  const needsSpace = base.length > 0 && !/\s$/.test(base)
+  syncInput(`${base}${needsSpace ? ' ' : ''}${token}`)
+  nextTick(() => {
+    const el = textareaRef.value
+    if (el) {
+      const pos = inputRef.value.length
+      el.selectionStart = el.selectionEnd = pos
+      setCursor(pos)
+      focusTextarea()
+    }
+  })
+}
+
 function applyItem(item: CommandMenuItem) {
+  if (!item.action) return
   if (item.action === 'switch-domain' && item.domainId) {
     const nextInput =
       trigger.value?.kind === 'mention'
@@ -120,32 +146,28 @@ function applyItem(item: CommandMenuItem) {
   } else if (item.action === 'new-chat') {
     syncInput(removeTriggerText())
     emit('new-chat')
+  } else if (item.action === 'run-workflow' && item.workflowId) {
+    syncInput(removeTriggerText())
+    emit('run-workflow', item.workflowId)
+  } else if (item.action === 'refresh-workflows') {
+    syncInput(removeTriggerText())
+    emit('refresh-workflows')
   } else if (item.action === 'insert-mention') {
     const t = trigger.value
     const next = t
       ? inputRef.value.slice(0, t.start) + '@' + inputRef.value.slice(t.end)
       : `${inputRef.value}@`
     syncInput(next)
+  } else if (item.action === 'insert-slash-prefix') {
+    insertSlashPrefix(item.slashPrefix, true)
+  } else if (item.action === 'fill-prompt' && item.promptText) {
+    const base = removeTriggerText().trimEnd()
+    syncInput(base ? `${base} ${item.promptText}` : item.promptText)
   }
   nextTick(() => {
     updateCursor()
     autoResize()
     focusTextarea()
-  })
-}
-
-function insertSlashTrigger() {
-  const base = inputRef.value
-  const needsSpace = base.length > 0 && !/\s$/.test(base)
-  syncInput(`${base}${needsSpace ? ' ' : ''}/`)
-  nextTick(() => {
-    const el = textareaRef.value
-    if (el) {
-      const pos = inputRef.value.length
-      el.selectionStart = el.selectionEnd = pos
-      setCursor(pos)
-      focusTextarea()
-    }
   })
 }
 
@@ -247,12 +269,11 @@ function onKeydown(e: KeyboardEvent) {
           </button>
         </DcAttachmentTrigger>
         <button
-          v-if="showCozeShortcuts"
           type="button"
           class="foot-tool foot-tool--slash"
-          title="打开 Coze 命令菜单（也可输入 /）"
+          title="打开命令菜单（/coze、/dbgpt 等，也可直接输入 /）"
           :disabled="disabled"
-          @click="insertSlashTrigger"
+          @click="insertSlashPrefix()"
         >
           <span class="slash-trigger">/</span>
         </button>

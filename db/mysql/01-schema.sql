@@ -49,8 +49,10 @@ CREATE TABLE `chat_session` (
     `resource_id`     VARCHAR(128)    NULL,
     `created_at`      BIGINT          NOT NULL,
     `updated_at`      BIGINT          NOT NULL,
+    `user_id`         VARCHAR(128)    NULL,
     PRIMARY KEY (`id`),
-    KEY `IX_chat_session_updated_at` (`updated_at`)
+    KEY `IX_chat_session_updated_at` (`updated_at`),
+    KEY `IX_chat_session_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `chat_message` (

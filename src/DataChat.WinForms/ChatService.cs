@@ -26,7 +26,7 @@ public sealed class ChatService
     public DomainsConfiguration Domains => _domains.Current;
 
     public Task<IReadOnlyList<ChatSession>> ListSessionsAsync(CancellationToken ct = default) =>
-        _repository.ListSessionsAsync(ct);
+        _repository.ListSessionsAsync(userId: null, cancellationToken: ct);
 
     public async Task<ChatSession> CreateSessionAsync(string domainId, CancellationToken ct = default)
     {
@@ -57,7 +57,7 @@ public sealed class ChatService
         string userText,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken externalCt = default)
     {
-        var session = await _repository.GetSessionAsync(sessionId, externalCt)
+        var session = await _repository.GetSessionAsync(sessionId, userId: null, cancellationToken: externalCt)
             ?? throw new InvalidOperationException("会话不存在");
         var domain = _domains.Current.Domains.First(d => d.Id == session.DomainId);
         var history = await _repository.GetMessagesAsync(sessionId, externalCt);

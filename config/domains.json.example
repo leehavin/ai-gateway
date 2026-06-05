@@ -22,7 +22,16 @@
         "botId": "YOUR_COZE_BOT_ID",
         "apiKeyRef": "coze-main",
         "autoSaveHistory": true,
-        "userIdPrefix": "patent"
+        "userIdPrefix": "patent",
+        "workspaceId": "YOUR_COZE_WORKSPACE_ID",
+        "listPublishStatus": "published",
+        "workflows": [
+          {
+            "workflowId": "YOUR_WORKFLOW_ID",
+            "displayName": "示例工作流",
+            "inputParameter": "BOT_USER_INPUT"
+          }
+        ]
       }
     },
     {

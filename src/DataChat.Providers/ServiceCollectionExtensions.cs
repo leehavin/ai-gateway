@@ -49,6 +49,7 @@ public static class ServiceCollectionExtensions
 
 
         services.AddSingleton<CozeClientFactory>();
+        services.AddSingleton<CozeOpenApiClient>();
 
         services.AddSingleton<ICozeConversationStore, InMemoryCozeConversationStore>();
 

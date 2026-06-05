@@ -28,4 +28,35 @@ public sealed class GatewayOptions
     public string? ConnectionString { get; set; }
     public bool PersistSessions { get; set; } = true;
     public bool EnableSessionApi { get; set; } = true;
+
+    /// <summary>用户认证（独立 Web 登录 / WinForms 宿主换 Token）。</summary>
+    public GatewayAuthOptions Auth { get; set; } = new();
+}
+
+public sealed class GatewayAuthOptions
+{
+    /// <summary>HMAC 签名密钥，用于签发与校验用户会话 Token。</summary>
+    public string SigningKey { get; set; } = "";
+
+    public int TokenLifetimeHours { get; set; } = 24;
+
+    /// <summary>WinForms / 宿主系统用服务密钥换取用户 Token（POST /v1/auth/token）。</summary>
+    public string? ServiceKey { get; set; }
+
+    /// <summary>本地用户表（可替换为 IHostAuthProvider 其他实现）。</summary>
+    public LocalAuthUserEntry[] Users { get; set; } = [];
+}
+
+public sealed class LocalAuthUserEntry
+{
+    /// <summary>稳定用户 ID，用于会话隔离。</summary>
+    public string UserId { get; set; } = "";
+
+    /// <summary>登录名；为空时使用 UserId。</summary>
+    public string? Login { get; set; }
+
+    /// <summary>界面显示名。</summary>
+    public string UserName { get; set; } = "";
+
+    public string Password { get; set; } = "";
 }

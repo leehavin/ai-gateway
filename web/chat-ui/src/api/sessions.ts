@@ -68,7 +68,7 @@ export async function fetchServerSessions(domainId: string): Promise<SessionMeta
 }
 
 export async function fetchServerSession(
-  domainId: string,
+  _domainId: string,
   sessionId: string
 ): Promise<ChatSession> {
   const res = await fetch(`${gatewayUrl()}/v1/sessions/${sessionId}`, { headers: authHeaders() })

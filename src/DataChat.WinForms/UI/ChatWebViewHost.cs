@@ -50,5 +50,19 @@ public sealed class ChatWebViewHost : Panel
         await _webView.CoreWebView2.ExecuteScriptAsync(script);
     }
 
+    /// <summary>向嵌入的 chat-ui 注入用户身份（WinForms / IPSpace 宿主登录后调用）。</summary>
+    public async Task InjectUserAsync(string userId, string userName, string token)
+    {
+        await EnsureReadyAsync();
+        var payload = JsonSerializer.Serialize(new
+        {
+            type = "datachat:setUser",
+            userId,
+            userName,
+            token
+        });
+        await ExecAsync($"window.postMessage({payload}, '*')");
+    }
+
     private static string Js(string s) => JsonSerializer.Serialize(s);
 }

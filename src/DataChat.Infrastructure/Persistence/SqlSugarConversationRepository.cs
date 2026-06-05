@@ -33,19 +33,23 @@ public sealed class SqlSugarConversationRepository : IConversationRepository, ID
         return Task.CompletedTask;
     }
 
-    public async Task<IReadOnlyList<ChatSession>> ListSessionsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ChatSession>> ListSessionsAsync(string? userId = null, CancellationToken cancellationToken = default)
     {
         await EnsureInitializedAsync(cancellationToken);
-        var rows = await _db.Queryable<ChatSessionEntity>()
-            .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
-            .ToListAsync(cancellationToken);
+        var query = _db.Queryable<ChatSessionEntity>();
+        if (!string.IsNullOrWhiteSpace(userId))
+            query = query.Where(x => x.UserId == userId);
+        var rows = await query.OrderBy(x => x.UpdatedAt, OrderByType.Desc).ToListAsync(cancellationToken);
         return rows.Select(ToSession).ToList();
     }
 
-    public async Task<ChatSession?> GetSessionAsync(string id, CancellationToken cancellationToken = default)
+    public async Task<ChatSession?> GetSessionAsync(string id, string? userId = null, CancellationToken cancellationToken = default)
     {
         await EnsureInitializedAsync(cancellationToken);
-        var row = await _db.Queryable<ChatSessionEntity>().FirstAsync(x => x.Id == id, cancellationToken);
+        var query = _db.Queryable<ChatSessionEntity>().Where(x => x.Id == id);
+        if (!string.IsNullOrWhiteSpace(userId))
+            query = query.Where(x => x.UserId == userId);
+        var row = await query.FirstAsync(cancellationToken);
         return row is null ? null : ToSession(row);
     }
 
@@ -105,7 +109,8 @@ public sealed class SqlSugarConversationRepository : IConversationRepository, ID
         Model = e.Model,
         ResourceId = e.ResourceId,
         CreatedAt = e.CreatedAt,
-        UpdatedAt = e.UpdatedAt
+        UpdatedAt = e.UpdatedAt,
+        UserId = e.UserId
     };
 
     private static ChatSessionEntity ToEntity(ChatSession s) => new()
@@ -117,7 +122,8 @@ public sealed class SqlSugarConversationRepository : IConversationRepository, ID
         Model = s.Model,
         ResourceId = s.ResourceId,
         CreatedAt = s.CreatedAt,
-        UpdatedAt = s.UpdatedAt
+        UpdatedAt = s.UpdatedAt,
+        UserId = s.UserId
     };
 
     private static ChatMessage ToMessage(ChatMessageEntity e) => new()

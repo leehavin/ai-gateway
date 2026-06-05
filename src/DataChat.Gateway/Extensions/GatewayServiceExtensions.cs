@@ -1,6 +1,7 @@
 using DataChat.Core.Abstractions;
 using DataChat.Core.Chat;
 using DataChat.Core.Configuration;
+using DataChat.Gateway.Auth;
 using DataChat.Gateway.Configuration;
 using DataChat.Gateway.Middleware;
 using DataChat.Gateway.Security;
@@ -8,6 +9,7 @@ using DataChat.Gateway.Services;
 using DataChat.Infrastructure.Configuration;
 using DataChat.Infrastructure.Persistence;
 using DataChat.Providers;
+using DataChat.Providers.Coze;
 using Microsoft.Extensions.Options;
 
 namespace DataChat.Gateway.Extensions;
@@ -19,6 +21,11 @@ public static class GatewayServiceExtensions
         IConfiguration configuration)
     {
         services.Configure<GatewayOptions>(configuration.GetSection(GatewayOptions.SectionName));
+        services.AddHttpContextAccessor();
+        services.AddSingleton<SessionTokenService>();
+        services.AddSingleton<GatewayAuthService>();
+        services.AddSingleton<ICurrentUserService, CurrentUserService>();
+        services.AddSingleton<IHostAuthProvider, LocalConfigAuthProvider>();
 
         var gatewayOptions = configuration.GetSection(GatewayOptions.SectionName).Get<GatewayOptions>()
             ?? new GatewayOptions();
@@ -43,6 +50,9 @@ public static class GatewayServiceExtensions
         services.AddSingleton<GatewayChatService>();
         services.AddSingleton<DbgptResourceService>();
         services.AddSingleton<CozeResourceService>();
+        services.AddSingleton<CozeWorkflowService>();
+        services.AddSingleton<CozeClientFactory>();
+        services.AddSingleton<CozeOpenApiClient>();
 
         var timeoutSeconds = gatewayOptions.TimeoutSeconds > 0
             ? gatewayOptions.TimeoutSeconds

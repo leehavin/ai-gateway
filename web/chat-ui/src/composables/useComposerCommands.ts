@@ -1,56 +1,37 @@
 import { computed, ref, type Ref } from 'vue'
-import type { CozeBotSummary, DomainItem } from '../types'
+import { categoryForDomain } from '../providers/category'
+import {
+  getProviderBySlashPrefix,
+  resolveSlashMenuItems,
+  type SlashCommandItem,
+  type SlashMenuContext,
+  type SlashTrigger,
+} from '../providers'
 
 export type CommandMenuKind = 'mention' | 'slash'
+export type CommandMenuItem = SlashCommandItem
 
-export interface CommandMenuItem {
-  id: string
-  kind: 'domain' | 'action'
-  label: string
-  desc?: string
-  category: string
-  domainId?: string
-  action?: 'switch-domain' | 'upload' | 'new-chat' | 'insert-mention'
-}
-
-export interface CommandTrigger {
+export interface CommandTrigger extends SlashTrigger {
   kind: CommandMenuKind
-  query: string
-  start: number
-  end: number
 }
 
-function categoryForDomain(d: DomainItem): string {
-  if (d.provider === 'coze') return 'Coze 智能体'
-  if (d.provider === 'custom') return '自研插件'
-  if (d.dbgpt?.knowledgeSpaceName) return '知识库'
-  if (d.chatMode === 'DbGptData' || d.dbgpt?.chatMode === 'chat_data') return '数据问数'
-  if (d.provider === 'dbgpt') return 'DB-GPT 智能体'
-  return '智能体'
-}
-
-export function detectCommandTrigger(
-  value: string,
-  cursor: number,
-  activeProvider?: string
-): CommandTrigger | null {
+export function detectCommandTrigger(value: string, cursor: number): CommandTrigger | null {
   const before = value.slice(0, cursor)
-  const slashCoze = before.match(/\/(coze[\w-]*)$/i)
-  if (slashCoze) {
-    const raw = slashCoze[1]
+
+  const slashNamed = before.match(/\/([a-z][\w-]*)$/i)
+  if (slashNamed) {
     return {
       kind: 'slash',
-      query: raw.toLowerCase(),
-      start: cursor - slashCoze[0].length,
+      query: slashNamed[1].toLowerCase(),
+      start: cursor - slashNamed[0].length,
       end: cursor,
     }
   }
+
   if (before.endsWith('/')) {
-    const start = cursor - 1
-    const query = activeProvider === 'coze' ? 'coze' : ''
-    return { kind: 'slash', query, start, end: cursor }
+    return { kind: 'slash', query: '', start: cursor - 1, end: cursor }
   }
-  // 仅匹配「词首」@，避免邮箱 user@corp.com 误触发
+
   const mention = before.match(/(?:^|[\s])@([^\s@]*)$/)
   if (mention) {
     const atStart = mention.index! + (mention[0].startsWith('@') ? 0 : mention[0].indexOf('@'))
@@ -64,70 +45,15 @@ export function detectCommandTrigger(
   return null
 }
 
-function buildCozeSlashItems(
-  domains: DomainItem[],
-  cozeBots: CozeBotSummary[]
-): CommandMenuItem[] {
-  const cozeDomains = domains.filter((d) => d.provider === 'coze')
-  const items: CommandMenuItem[] = [
-    {
-      id: 'coze-upload',
-      kind: 'action',
-      label: '上传文件并对话',
-      desc: '支持图片、PDF、文档等，由网关转发给当前 Bot',
-      category: 'Coze',
-      action: 'upload',
-    },
-    {
-      id: 'coze-new',
-      kind: 'action',
-      label: '新建 Coze 会话',
-      desc: '清空当前对话并保留 Coze 领域',
-      category: 'Coze',
-      action: 'new-chat',
-    },
-  ]
-  for (const bot of cozeBots) {
-    items.push({
-      id: `coze-bot-${bot.domainId}`,
-      kind: 'domain',
-      label: bot.displayName,
-      desc: `Bot ${bot.botId}`,
-      category: '切换 Bot',
-      domainId: bot.domainId,
-      action: 'switch-domain',
-    })
-  }
-  for (const d of cozeDomains) {
-    if (cozeBots.some((b) => b.domainId === d.id)) continue
-    items.push({
-      id: `coze-domain-${d.id}`,
-      kind: 'domain',
-      label: d.displayName,
-      desc: d.coze?.botId ? `Bot ${d.coze.botId}` : undefined,
-      category: '切换 Bot',
-      domainId: d.id,
-      action: 'switch-domain',
-    })
-  }
-  return items
-}
-
 export function useComposerCommands(
   inputValue: Ref<string>,
-  domains: Ref<DomainItem[]>,
-  cozeBots: Ref<CozeBotSummary[]>,
-  activeProvider: Ref<string | undefined>
+  slashMenuContext: Ref<SlashMenuContext>
 ) {
   const cursorPos = ref(0)
   const activeIndex = ref(0)
 
-  const trigger = computed(() =>
-    detectCommandTrigger(inputValue.value, cursorPos.value, activeProvider.value)
-  )
-
-  const menuOpen = computed(
-    () => trigger.value !== null && menuItems.value.length > 0
+  const trigger = computed((): CommandTrigger | null =>
+    detectCommandTrigger(inputValue.value, cursorPos.value)
   )
 
   const menuItems = computed((): CommandMenuItem[] => {
@@ -135,33 +61,11 @@ export function useComposerCommands(
     if (!t) return []
 
     if (t.kind === 'slash') {
-      const q = t.query
-      const isCozeCtx = activeProvider.value === 'coze' || q.startsWith('coze')
-      if (!isCozeCtx) {
-        return [
-          {
-            id: 'slash-mention',
-            kind: 'action',
-            label: '@ 切换智能体',
-            desc: '插入 @ 并从列表选择领域',
-            category: '快捷',
-            action: 'insert-mention',
-          },
-        ]
-      }
-      const items = buildCozeSlashItems(domains.value, cozeBots.value)
-      const needle = q === 'coze' || q === '' ? '' : q.replace(/^coze/, '').trim()
-      if (!needle) return items
-      return items.filter(
-        (i) =>
-          i.label.toLowerCase().includes(needle) ||
-          i.desc?.toLowerCase().includes(needle) ||
-          i.category.toLowerCase().includes(needle)
-      )
+      return resolveSlashMenuItems(t, slashMenuContext.value)
     }
 
     const needle = t.query.toLowerCase()
-    const list = domains.value
+    return slashMenuContext.value.domains
       .filter((d) => {
         if (!needle) return true
         const hay = `${d.displayName} ${d.id} ${d.provider} ${categoryForDomain(d)}`.toLowerCase()
@@ -176,7 +80,16 @@ export function useComposerCommands(
         domainId: d.id,
         action: 'switch-domain' as const,
       }))
-    return list
+  })
+
+  const menuOpen = computed(() => trigger.value !== null && menuItems.value.length > 0)
+
+  const slashMenuTitle = computed(() => {
+    const t = trigger.value
+    if (!t || t.kind !== 'slash') return '命令'
+    if (!t.query) return '命令'
+    const plugin = getProviderBySlashPrefix(t.query)
+    return plugin ? `${plugin.displayName} 命令` : '命令'
   })
 
   const groupedMenuItems = computed(() => {
@@ -230,6 +143,7 @@ export function useComposerCommands(
     menuOpen,
     menuItems,
     groupedMenuItems,
+    slashMenuTitle,
     setCursor,
     clampActiveIndex,
     moveActive,

@@ -50,6 +50,26 @@ public sealed class CozeDomainOptions
     /// <summary>传给 Coze UserID 的前缀，便于多租户隔离；最终为 {prefix}:{sessionId}。</summary>
     public string? UserIdPrefix { get; set; }
     public Dictionary<string, string>? CustomVariables { get; set; }
+    /// <summary>扣子空间 ID（URL 中 space/ 后的数字），用于 GET /v1/workflows 拉取工作流列表。</summary>
+    public string? WorkspaceId { get; set; }
+    /// <summary>列表 API 可选：按 app_id 筛选（扣子应用内工作流）。</summary>
+    public string? ListAppId { get; set; }
+    /// <summary>列表 API 可选：published / unpublished，默认 published。</summary>
+    public string? ListPublishStatus { get; set; }
+    /// <summary>可选：预配置工作流；与 API 列表合并，本地项可覆盖 inputParameter 等。</summary>
+    public List<CozeWorkflowOptions>? Workflows { get; set; }
+}
+
+public sealed class CozeWorkflowOptions
+{
+    public required string WorkflowId { get; init; }
+    public string? DisplayName { get; set; }
+    public string? Description { get; set; }
+    /// <summary>用户输入映射到 workflow parameters 的键，默认 BOT_USER_INPUT。</summary>
+    public string InputParameter { get; set; } = "BOT_USER_INPUT";
+    public Dictionary<string, string>? DefaultParameters { get; set; }
+    /// <summary>扣子应用内工作流需指定 app_id（与 bot_id 勿同时传）。</summary>
+    public string? AppId { get; set; }
 }
 
 public sealed class CustomDomainOptions

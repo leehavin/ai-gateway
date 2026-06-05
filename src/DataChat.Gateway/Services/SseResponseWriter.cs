@@ -48,6 +48,29 @@ public static class SseResponseWriter
                     JsonSerializer.Serialize(new { type = "citations", citations = chunk.Citations }),
                     cancellationToken);
 
+            if (chunk.WorkflowInterrupt is not null)
+            {
+                var wi = chunk.WorkflowInterrupt;
+                await WriteEventAsync(
+                    response,
+                    JsonSerializer.Serialize(new
+                    {
+                        type = "workflow_interrupt",
+                        workflowId = wi.WorkflowId,
+                        eventId = wi.EventId,
+                        interruptType = wi.InterruptType,
+                        nodeTitle = wi.NodeTitle,
+                        prompt = wi.Prompt
+                    }),
+                    cancellationToken);
+            }
+
+            if (chunk.WorkflowDebugUrl is not null)
+                await WriteEventAsync(
+                    response,
+                    JsonSerializer.Serialize(new { type = "workflow_done", debugUrl = chunk.WorkflowDebugUrl }),
+                    cancellationToken);
+
             if (chunk.IsCompleted)
                 break;
         }

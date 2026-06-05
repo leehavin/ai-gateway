@@ -1,19 +1,17 @@
+import { stripAllProviderSlashTokens } from '../providers'
+
 /** 发送前去掉输入框中的 @智能体 标记（领域已由 domainId 决定）。 */
 export function stripMentionTokens(message: string): string {
   let s = message.trim()
-  // 支持显示名含空格、括号等：重复剥离行首 @… 段（以空格结尾）
   while (/^@[^\n]+?\s+/u.test(s)) {
     s = s.replace(/^@[^\n]+?\s+/u, '').trimStart()
   }
   return s.replace(/\s+@[^\n]+?\s+/gu, ' ').trim()
 }
 
-/** 去掉 /coze 等斜杠命令残留。 */
+/** 去掉各 provider 斜杠命令与裸 `/` 残留。 */
 export function stripSlashCommandTokens(message: string): string {
-  return message
-    .replace(/^\/coze(?:\s+\S+)?\s*/i, '')
-    .replace(/^\/\s*/, '')
-    .trim()
+  return stripAllProviderSlashTokens(message)
 }
 
 /** 去掉展示用附件后缀（📎 文件名），API 用 attachments 字段传递。 */
@@ -35,7 +33,7 @@ export function normalizeOutgoingMessage(message: string): string {
   return stripSlashCommandTokens(stripMentionTokens(message))
 }
 
-/** 发往网关的用户消息正文（无 @、无 /coze、无 📎 行）。 */
+/** 发往网关的用户消息正文（无 @、无 /coze 等、无 📎 行）。 */
 export function toApiUserContent(displayContent: string): string {
   return normalizeOutgoingMessage(stripAttachmentNote(displayContent))
 }

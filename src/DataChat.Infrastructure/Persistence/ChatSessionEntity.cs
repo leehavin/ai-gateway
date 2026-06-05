@@ -28,4 +28,7 @@ public sealed class ChatSessionEntity
 
     [SugarColumn(ColumnName = "updated_at")]
     public long UpdatedAt { get; set; }
+
+    [SugarColumn(ColumnName = "user_id", Length = 128, IsNullable = true)]
+    public string? UserId { get; set; }
 }

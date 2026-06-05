@@ -38,7 +38,7 @@ USING (VALUES
         NULL,
         N'请输入问题…',
         NULL,
-        N'{"botId":"YOUR_COZE_BOT_ID","apiKeyRef":"coze-main","autoSaveHistory":true,"userIdPrefix":"user"}',
+        N'{"botId":"YOUR_COZE_BOT_ID","apiKeyRef":"coze-main","autoSaveHistory":true,"userIdPrefix":"user","workspaceId":"YOUR_COZE_WORKSPACE_ID","listPublishStatus":"published"}',
         0, 1, 0
     )
 ) AS s (

@@ -8,6 +8,14 @@ export interface SseEvent {
   text?: string
   thinking?: string
   citations?: ChatCitation[]
+  workflowInterrupt?: {
+    workflowId: string
+    eventId: string
+    interruptType: number
+    nodeTitle?: string
+    prompt?: string
+  }
+  workflowDone?: { debugUrl?: string }
   done?: boolean
   error?: string
 }
@@ -27,6 +35,25 @@ export function parseSseLine(line: string): SseEvent | null {
       return { citations: j.citations as ChatCitation[] }
     }
     if (type === 'delta' && typeof j.delta === 'string') return { text: j.delta }
+
+    if (type === 'workflow_interrupt') {
+      return {
+        workflowInterrupt: {
+          workflowId: String(j.workflowId ?? ''),
+          eventId: String(j.eventId ?? ''),
+          interruptType: Number(j.interruptType ?? 0),
+          nodeTitle: typeof j.nodeTitle === 'string' ? j.nodeTitle : undefined,
+          prompt: typeof j.prompt === 'string' ? j.prompt : undefined,
+        },
+      }
+    }
+    if (type === 'workflow_done') {
+      return {
+        workflowDone: {
+          debugUrl: typeof j.debugUrl === 'string' ? j.debugUrl : undefined,
+        },
+      }
+    }
 
     if (typeof j.delta === 'string') return { text: j.delta }
     const choices = j.choices as Array<{ delta?: { content?: string } }> | undefined

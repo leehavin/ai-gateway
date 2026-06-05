@@ -4,6 +4,7 @@ import '@devui-design/icons/icomoon/devui-icon.css'
 import 'vue-devui/icon/style.css'
 import App from './App.vue'
 import { initHostAuthBridge } from './bridge/hostAuth'
+import './providers'
 import './style.css'
 
 initHostAuthBridge()

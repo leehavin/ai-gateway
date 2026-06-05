@@ -38,13 +38,17 @@ public sealed class SqliteConversationRepository : IConversationRepository, IDat
         return Task.CompletedTask;
     }
 
-    public async Task<IReadOnlyList<ChatSession>> ListSessionsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ChatSession>> ListSessionsAsync(string? userId = null, CancellationToken cancellationToken = default)
     {
         await EnsureInitializedAsync(cancellationToken);
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync(cancellationToken);
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT id,title,domain_id,chat_mode,model,resource_id,created_at,updated_at FROM chat_session ORDER BY updated_at DESC";
+        cmd.CommandText = string.IsNullOrWhiteSpace(userId)
+            ? "SELECT id,title,domain_id,chat_mode,model,resource_id,created_at,updated_at,user_id FROM chat_session ORDER BY updated_at DESC"
+            : "SELECT id,title,domain_id,chat_mode,model,resource_id,created_at,updated_at,user_id FROM chat_session WHERE user_id=$uid ORDER BY updated_at DESC";
+        if (!string.IsNullOrWhiteSpace(userId))
+            cmd.Parameters.AddWithValue("$uid", userId);
         var list = new List<ChatSession>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -52,14 +56,18 @@ public sealed class SqliteConversationRepository : IConversationRepository, IDat
         return list;
     }
 
-    public async Task<ChatSession?> GetSessionAsync(string id, CancellationToken cancellationToken = default)
+    public async Task<ChatSession?> GetSessionAsync(string id, string? userId = null, CancellationToken cancellationToken = default)
     {
         await EnsureInitializedAsync(cancellationToken);
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync(cancellationToken);
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT id,title,domain_id,chat_mode,model,resource_id,created_at,updated_at FROM chat_session WHERE id=$id";
+        cmd.CommandText = string.IsNullOrWhiteSpace(userId)
+            ? "SELECT id,title,domain_id,chat_mode,model,resource_id,created_at,updated_at,user_id FROM chat_session WHERE id=$id"
+            : "SELECT id,title,domain_id,chat_mode,model,resource_id,created_at,updated_at,user_id FROM chat_session WHERE id=$id AND user_id=$uid";
         cmd.Parameters.AddWithValue("$id", id);
+        if (!string.IsNullOrWhiteSpace(userId))
+            cmd.Parameters.AddWithValue("$uid", userId);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken) ? ReadSession(reader) : null;
     }
@@ -71,11 +79,11 @@ public sealed class SqliteConversationRepository : IConversationRepository, IDat
         await conn.OpenAsync(cancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO chat_session(id,title,domain_id,chat_mode,model,resource_id,created_at,updated_at)
-            VALUES($id,$title,$domain,$mode,$model,$resource,$created,$updated)
+            INSERT INTO chat_session(id,title,domain_id,chat_mode,model,resource_id,created_at,updated_at,user_id)
+            VALUES($id,$title,$domain,$mode,$model,$resource,$created,$updated,$uid)
             ON CONFLICT(id) DO UPDATE SET
               title=$title, domain_id=$domain, chat_mode=$mode, model=$model,
-              resource_id=$resource, updated_at=$updated
+              resource_id=$resource, updated_at=$updated, user_id=$uid
             """;
         BindSession(cmd, session);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
@@ -157,7 +165,8 @@ public sealed class SqliteConversationRepository : IConversationRepository, IDat
         Model = r.IsDBNull(4) ? null : r.GetString(4),
         ResourceId = r.IsDBNull(5) ? null : r.GetString(5),
         CreatedAt = r.GetInt64(6),
-        UpdatedAt = r.GetInt64(7)
+        UpdatedAt = r.GetInt64(7),
+        UserId = r.FieldCount > 8 && !r.IsDBNull(8) ? r.GetString(8) : null
     };
 
     private static ChatMessage ReadMessage(SqliteDataReader r) => new()
@@ -180,5 +189,6 @@ public sealed class SqliteConversationRepository : IConversationRepository, IDat
         cmd.Parameters.AddWithValue("$resource", (object?)s.ResourceId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$created", s.CreatedAt);
         cmd.Parameters.AddWithValue("$updated", s.UpdatedAt);
+        cmd.Parameters.AddWithValue("$uid", (object?)s.UserId ?? DBNull.Value);
     }
 }

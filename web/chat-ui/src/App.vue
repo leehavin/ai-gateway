@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import AppHeader from './components/AppHeader.vue'
+import LoginView from './components/LoginView.vue'
+import { useAuth } from './composables/useAuth'
 import AssistantMessage from './components/AssistantMessage.vue'
 import ChatParamsPanel from './components/ChatParamsPanel.vue'
 import ChatComposer from './components/ChatComposer.vue'
@@ -10,6 +12,7 @@ import { useAttachments } from './composables/useAttachments'
 import { useChat } from './composables/useChat'
 import { useChatParameters } from './composables/useChatParameters'
 import { useDomains } from './composables/useDomains'
+import { bindCozeWorkflowRefresh, useCozeResources } from './providers'
 import { useHistory } from './composables/useHistory'
 import { exportSessionJson, exportSessionMarkdown, exportSessionPdf } from './utils/exportChat'
 import { BRAND } from './constants/brand'
@@ -32,6 +35,16 @@ import {
   type PromptItem,
 } from './ui'
 
+const {
+  checking: authChecking,
+  loggingIn: authLoggingIn,
+  error: authError,
+  needsLogin,
+  isEmbedded,
+  isAuthenticated,
+  login: authLogin,
+} = useAuth()
+
 const { domains, cozeBots, health, loading, error, domainId, refresh } = useDomains()
 const history = useHistory(domainId)
 const {
@@ -42,6 +55,27 @@ const {
   toggleAside,
 } = history
 const activeDomain = computed(() => domains.value.find((d) => d.id === domainId.value))
+const isCozeDomain = computed(() => activeDomain.value?.provider === 'coze')
+const {
+  workflows: cozeWorkflows,
+  loading: cozeWorkflowsLoading,
+  error: cozeWorkflowsError,
+  refresh: refreshCozeWorkflows,
+} = useCozeResources(domainId, isCozeDomain)
+
+onMounted(() => {
+  bindCozeWorkflowRefresh(refreshCozeWorkflows)
+})
+
+const slashMenuContext = computed(() => ({
+  domains: domains.value,
+  domainId: domainId.value,
+  activeProvider: activeDomain.value?.provider,
+  cozeBots: cozeBots.value,
+  cozeWorkflows: cozeWorkflows.value,
+  cozeWorkflowsLoading: cozeWorkflowsLoading.value,
+  cozeWorkflowsError: cozeWorkflowsError.value,
+}))
 const attachments = useAttachments()
 const { fileItems, hasUploading, getDropContainer, onHiddenFileChange, openFilePicker, addFiles } =
   attachments
@@ -91,7 +125,9 @@ const {
   showToast,
   composerFocusNonce,
   hasHistory,
-} = useChat(domainId, activeDomain, history, attachments, chatParams)
+  providerBanners,
+  runCozeWorkflow,
+} = useChat(domainId, activeDomain, history, attachments, chatParams, cozeWorkflows)
 
 const { historyList, renameSessionTitle, togglePin } = history
 
@@ -130,6 +166,10 @@ function onComposerNewChat() {
     domainId.value = firstCoze.id
   }
   newConversation()
+}
+
+function onRunCozeWorkflow(workflowId: string) {
+  runCozeWorkflow(workflowId)
 }
 
 const contentRef = ref<{ scrollToBottom?: () => void } | null>(null)
@@ -202,10 +242,34 @@ function onApplyChatParams(v: ChatGenerationParameters) {
   closeParamsPanel()
   showToast('生成参数已保存')
 }
+
+async function onLogin(username: string, password: string) {
+  try {
+    await authLogin(username, password)
+    await refresh()
+    await history.refresh()
+  } catch {
+    /* error shown on LoginView */
+  }
+}
 </script>
 
 <template>
-  <div class="app-shell">
+  <div v-if="authChecking" class="auth-loading">正在验证登录…</div>
+
+  <LoginView
+    v-else-if="needsLogin"
+    :loading="authLoggingIn"
+    :error="authError"
+    @submit="onLogin"
+  />
+
+  <div v-else-if="isEmbedded && !isAuthenticated" class="auth-loading">
+    等待宿主系统注入用户信息…
+  </div>
+
+
+  <div v-else class="app-shell">
     <HistoryPanel
       :expanded="asideExpanded"
       :search-key="searchKey"
@@ -390,6 +454,29 @@ function onApplyChatParams(v: ChatGenerationParameters) {
               <span>已引用：{{ quotePreview }}</span>
               <button type="button" class="quote-banner-clear" @click="clearQuotePreview">清除</button>
             </div>
+            <template v-for="(banner, bi) in providerBanners" :key="bi">
+              <div
+                v-if="banner.kind === 'workflow-interrupt'"
+                class="workflow-banner"
+              >
+                <span>
+                  工作流等待回复
+                  <template v-if="banner.nodeTitle">（{{ banner.nodeTitle }}）</template>
+                </span>
+                <button type="button" class="workflow-banner-cancel" @click="banner.onCancel">
+                  取消
+                </button>
+              </div>
+              <div
+                v-else-if="banner.kind === 'workflow-pending'"
+                class="workflow-banner workflow-banner-pending"
+              >
+                <span>已选工作流：{{ banner.displayName }}，输入后发送</span>
+                <button type="button" class="workflow-banner-cancel" @click="banner.onCancel">
+                  取消
+                </button>
+              </div>
+            </template>
             <div v-if="isEditing" class="edit-banner">
               <span>正在编辑消息，发送后将从此处重新生成</span>
               <button type="button" class="edit-banner-cancel" @click="cancelEditUserMessage">
@@ -402,16 +489,14 @@ function onApplyChatParams(v: ChatGenerationParameters) {
                 :placeholder="placeholder"
                 :max-length="2000"
                 :disabled="sending || !!error || hasUploading"
-                :domains="domains"
-                :coze-bots="cozeBots"
-                :domain-id="domainId"
-                :active-provider="activeDomain?.provider"
-                :show-coze-shortcuts="activeDomain?.provider === 'coze'"
+                :slash-menu-context="slashMenuContext"
                 :get-drop-container="getDropContainer"
                 :focus-nonce="composerFocusNonce"
                 @submit="() => handleSubmit()"
                 @update:domain-id="onComposerDomainChange"
                 @new-chat="onComposerNewChat"
+                @run-workflow="onRunCozeWorkflow"
+                @refresh-workflows="refreshCozeWorkflows"
                 @pick-files="openFilePicker"
                 @drop-files="(files) => addFiles(files)"
                 @paste-files="(files) => addFiles(files)"
@@ -443,6 +528,16 @@ function onApplyChatParams(v: ChatGenerationParameters) {
 </template>
 
 <style scoped>
+.auth-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100vh;
+  color: var(--dc-text-secondary);
+  font-size: 14px;
+}
+
 .app-shell {
   display: flex;
   width: 100%;
@@ -629,6 +724,40 @@ function onApplyChatParams(v: ChatGenerationParameters) {
 }
 
 .edit-banner-cancel:hover {
+  border-color: rgba(94, 124, 224, 0.4);
+}
+
+.workflow-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: var(--dc-radius-md);
+  background: #fff7ed;
+  border: 1px solid rgba(234, 88, 12, 0.25);
+  font-size: 12px;
+  color: #c2410c;
+}
+
+.workflow-banner-pending {
+  background: #eff6ff;
+  border-color: rgba(37, 99, 235, 0.25);
+  color: #1d4ed8;
+}
+
+.workflow-banner-cancel {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--dc-border);
+  border-radius: var(--dc-radius-pill);
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.workflow-banner-cancel:hover {
   border-color: rgba(94, 124, 224, 0.4);
 }
 

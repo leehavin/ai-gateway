@@ -17,6 +17,6 @@ INSERT OR REPLACE INTO dc_domain (
     'my-assistant', '智能助手', 'CozeAgent', 'coze', NULL,
     NULL, '请输入问题…',
     NULL,
-    '{"botId":"YOUR_COZE_BOT_ID","apiKeyRef":"coze-main","autoSaveHistory":true,"userIdPrefix":"user"}',
+    '{"botId":"YOUR_COZE_BOT_ID","apiKeyRef":"coze-main","autoSaveHistory":true,"userIdPrefix":"user","workspaceId":"YOUR_COZE_WORKSPACE_ID","listPublishStatus":"published"}',
     0, 1, 0
 );

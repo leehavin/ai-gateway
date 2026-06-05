@@ -70,6 +70,23 @@ export interface CozeBotSummary {
   apiKeyRef: string
 }
 
+export interface CozeWorkflowItem {
+  workflowId: string
+  displayName: string
+  description?: string
+  iconUrl?: string
+  appId?: string
+  inputParameter: string
+}
+
+export interface CozeWorkflowInterrupt {
+  workflowId: string
+  eventId: string
+  interruptType: number
+  nodeTitle?: string
+  prompt?: string
+}
+
 export interface GatewayHealth {
   status: string
   service: string

@@ -63,12 +63,17 @@ CREATE TABLE dbo.chat_session (
     resource_id     NVARCHAR(128)   NULL,
     created_at      BIGINT          NOT NULL,
     updated_at      BIGINT          NOT NULL,
+    user_id         NVARCHAR(128)   NULL,
     CONSTRAINT PK_chat_session PRIMARY KEY CLUSTERED (id)
 );
 GO
 
 CREATE NONCLUSTERED INDEX IX_chat_session_updated_at
     ON dbo.chat_session (updated_at DESC);
+GO
+
+CREATE NONCLUSTERED INDEX IX_chat_session_user_id
+    ON dbo.chat_session (user_id);
 GO
 
 CREATE TABLE dbo.chat_message (

@@ -2,7 +2,19 @@
 
 基地址示例：`http://127.0.0.1:5080`
 
-认证：除健康检查外，请求头 `Authorization: Bearer {token}`（与 `appsettings` 中 `Gateway:ValidTokens` 匹配）。
+认证：除健康检查与登录入口外，请求头 `Authorization: Bearer {token}`。
+
+- **用户会话 Token**：`POST /v1/auth/login` 或宿主 `POST /v1/auth/token` 签发（HMAC，需 `Gateway:Auth:SigningKey`）。
+- **静态 Token**：`Gateway:ValidTokens`（共享模式，会话不按用户隔离）。
+- **WinForms 嵌入**：宿主用 `ServiceKey` 换用户 Token，再 `postMessage` 注入 chat-ui。
+
+## 认证
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/v1/auth/login` | 独立 Web：`{ username, password }` → 用户 Token |
+| POST | `/v1/auth/token` | 宿主嵌入：`ServiceKey` + `{ userId, userName }` → 用户 Token |
+| GET | `/v1/auth/me` | 当前 Token 对应用户（需 Bearer） |
 
 ## 健康检查
 
@@ -99,7 +111,10 @@ DB-GPT 连通性由 `GET /v1/health` 的 `dbgptReachable` 探测；对话走 `PO
 | 配置项 | 说明 |
 |--------|------|
 | `Gateway:UseMock` | `true` 演示模式，不调用外部服务 |
-| `Gateway:ValidTokens` | 允许的 Bearer Token 列表 |
+| `Gateway:ValidTokens` | 静态 Bearer Token（共享模式） |
+| `Gateway:Auth:SigningKey` | 用户会话 Token 签名密钥 |
+| `Gateway:Auth:ServiceKey` | WinForms 宿主换 Token 的服务密钥 |
+| `Gateway:Auth:Users` | 本地用户表（可替换为其他 `IHostAuthProvider`） |
 | `Gateway:AllowedOrigins` | CORS，生产改为业务域名 |
 | `ApiKeys:dbgpt-main` | DB-GPT 服务端密钥 |
 | `ApiKeys:patent-key` | 专利领域自研服务密钥 |
