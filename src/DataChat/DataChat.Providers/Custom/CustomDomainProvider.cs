@@ -35,7 +35,9 @@ public sealed class CustomDomainProvider : IChatProvider
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var custom = context.Domain.Custom!;
-        var apiKey = await _apiKeyStore.GetAsync(custom.ApiKeyRef, cancellationToken);
+        var apiKey = !string.IsNullOrWhiteSpace(custom.ApiKey)
+            ? custom.ApiKey.Trim()
+            : await _apiKeyStore.GetAsync(custom.ApiKeyRef, cancellationToken);
 
         var history = ChatHistoryBuilder.Build(
             context.Domain,

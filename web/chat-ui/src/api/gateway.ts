@@ -1,22 +1,8 @@
-import { getAuthToken } from '../bridge/hostAuth'
+import { authHeaders, assertOk, gatewayUrl } from './http'
 import { readSseStream, type SseEvent } from './sse'
 import type { ChatAttachmentRef } from '../types/attachments'
 import type { ChatGenerationParameters } from '../types/chatParams'
 import type { ChatStreamMessageDto, CozeBotSummary, DomainItem, GatewayHealth } from '../types'
-
-/** 开发留空则走 Vite 代理（vite.config.ts → Gateway :5080） */
-const gatewayUrl = () => {
-  const env = import.meta.env.VITE_GATEWAY_URL
-  const base = env === undefined || env === '' ? '' : env
-  return base.replace(/\/$/, '')
-}
-function authHeaders(): HeadersInit {
-  const t = getAuthToken()
-  return {
-    'Content-Type': 'application/json',
-    ...(t ? { Authorization: `Bearer ${t}` } : {}),
-  }
-}
 
 export async function fetchHealth(): Promise<GatewayHealth> {
   const res = await fetch(`${gatewayUrl()}/v1/health`)
@@ -26,10 +12,7 @@ export async function fetchHealth(): Promise<GatewayHealth> {
 
 export async function fetchDomains(): Promise<DomainItem[]> {
   const res = await fetch(`${gatewayUrl()}/v1/domains`, { headers: authHeaders() })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`获取领域列表失败 ${res.status}${text ? `: ${text.slice(0, 120)}` : ''}`)
-  }
+  await assertOk(res, '获取智能体列表失败')
   return res.json() as Promise<DomainItem[]>
 }
 

@@ -14,6 +14,7 @@ const props = withDefaults(
   },
 );
 const vxeModalRef = ref();
+const submitting = ref(false);
 const modalOptions = reactive({
   value: false,
   title: '',
@@ -23,12 +24,17 @@ const modalOptions = reactive({
 const show = (title: string, readonly?: boolean) => {
   modalOptions.title = title;
   modalOptions.readonly = readonly ?? false;
+  submitting.value = false;
   modalOptions.value = true;
 };
 const close = () => {
   modalOptions.value = false;
+  submitting.value = false;
 };
-defineExpose({ show, close });
+const setSubmitting = (value: boolean) => {
+  submitting.value = value;
+};
+defineExpose({ show, close, setSubmitting });
 </script>
 
 <template>
@@ -54,6 +60,8 @@ defineExpose({ show, close });
         size="small"
         :status="`primary`"
         :content="$t(`common.save`)"
+        :loading="submitting"
+        :disabled="submitting"
         @click="emits('submit')"
       />
     </template>

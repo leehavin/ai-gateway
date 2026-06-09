@@ -54,8 +54,8 @@ public sealed class CozeChatProvider : IChatProvider
         string? authError = null;
         try
         {
-            var endpoint = coze.Endpoint ?? _domains.Current.Defaults.CozeEndpoint;
-            clientContext = await _clientFactory.CreateContextAsync(endpoint, coze.ApiKeyRef, cancellationToken);
+            clientContext = await _clientFactory.CreateContextAsync(
+                coze, _domains.Current.Defaults, cancellationToken);
         }
         catch (Exception ex)
         {

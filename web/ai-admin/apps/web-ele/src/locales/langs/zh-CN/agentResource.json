@@ -1,0 +1,39 @@
+{
+  "add": "新增子资源",
+  "edit": "编辑子资源",
+  "view": "查看子资源",
+  "columns": {
+    "agent": "智能体",
+    "agentId": "智能体 ID",
+    "resourceType": "类型",
+    "externalId": "外部 ID",
+    "displayName": "显示名",
+    "sortOrder": "排序",
+    "enabled": "状态"
+  },
+  "search": {
+    "agentId": "智能体 ID",
+    "displayName": "名称/ID",
+    "resourceType": "类型"
+  },
+  "form": {
+    "agent": "智能体",
+    "resourceType": "类型",
+    "externalId": "外部 ID",
+    "displayName": "显示名",
+    "description": "描述",
+    "configJson": "配置 JSON",
+    "sortOrder": "排序",
+    "enabled": "状态",
+    "remark": "备注",
+    "placeholder": {
+      "agent": "选择智能体",
+      "externalId": "如 Coze workflow_id"
+    },
+    "validate": {
+      "agent": "请选择智能体",
+      "resourceType": "请选择类型",
+      "externalId": "请输入外部 ID"
+    }
+  }
+}

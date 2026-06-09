@@ -1,8 +1,9 @@
-import { onMounted, ref } from 'vue'
+import { ref, type Ref } from 'vue'
+import { ApiUnauthorizedError } from '../api/http'
 import { fetchCozeBots, fetchDomains, fetchHealth } from '../api/gateway'
 import type { CozeBotSummary, DomainItem, GatewayHealth } from '../types'
 
-export function useDomains() {
+export function useDomains(ready: Ref<boolean>) {
   const domains = ref<DomainItem[]>([])
   const cozeBots = ref<CozeBotSummary[]>([])
   const health = ref<GatewayHealth | null>(null)
@@ -11,6 +12,7 @@ export function useDomains() {
   const domainId = ref(import.meta.env.VITE_DEFAULT_DOMAIN || '')
 
   async function refresh() {
+    if (!ready.value) return
     loading.value = true
     error.value = null
     try {
@@ -24,14 +26,16 @@ export function useDomains() {
       if (domains.value.length && !domains.value.some((d) => d.id === domainId.value)) {
         domainId.value = domains.value[0].id
       }
+      if (!domains.value.length) {
+        domainId.value = ''
+      }
     } catch (e) {
+      if (e instanceof ApiUnauthorizedError) throw e
       error.value = e instanceof Error ? e.message : String(e)
     } finally {
       loading.value = false
     }
   }
-
-  onMounted(() => void refresh())
 
   return { domains, cozeBots, health, loading, error, domainId, refresh }
 }

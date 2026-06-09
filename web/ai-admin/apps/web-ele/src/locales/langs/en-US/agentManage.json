@@ -1,0 +1,62 @@
+{
+  "add": "Add Agent",
+  "edit": "Edit Agent",
+  "view": "View Agent",
+  "columns": {
+    "id": "ID (domain)",
+    "displayName": "Display Name",
+    "provider": "Provider",
+    "chatMode": "Chat Mode",
+    "providerAccount": "Connector",
+    "model": "Model",
+    "sortOrder": "Sort",
+    "enabled": "Status"
+  },
+  "search": {
+    "displayName": "Display Name",
+    "provider": "Provider",
+    "enabled": "Status"
+  },
+  "form": {
+    "id": "ID",
+    "displayName": "Display Name",
+    "provider": "Provider",
+    "chatMode": "Chat Mode",
+    "providerAccount": "Connector",
+    "model": "Model",
+    "configJson": "Config JSON",
+    "coze": {
+      "botId": "Bot ID",
+      "workspaceId": "Workspace ID",
+      "userIdPrefix": "User ID Prefix",
+      "listPublishStatus": "Workflow Publish Status",
+      "autoSaveHistory": "Auto Save History"
+    },
+    "placeholderText": "Input Placeholder",
+    "quickPrompts": "Quick Prompts JSON",
+    "systemPrompt": "System Prompt",
+    "sortOrder": "Sort",
+    "enabled": "Status",
+    "remark": "Remark",
+    "placeholder": {
+      "id": "Gateway domain id",
+      "displayName": "Shown in chat list",
+      "providerAccount": "Optional connector account",
+      "configJson": "Provider-specific JSON",
+      "coze": {
+        "botId": "Numeric bot id from Coze studio URL",
+        "workspaceId": "Optional workspace id for workflow list API"
+      }
+    },
+    "validate": {
+      "id": "Enter ID",
+      "displayName": "Enter display name",
+      "provider": "Select provider",
+      "chatMode": "Enter chat mode",
+      "configJson": "Enter config JSON",
+      "coze": {
+        "botId": "Enter Bot ID"
+      }
+    }
+  }
+}

@@ -72,6 +72,11 @@ public class DataSeed : ISingletonDependency
             var definitionId = YitIdHelper.NextId();
             var myInstanceId = YitIdHelper.NextId();
             var waitingAuditingId = YitIdHelper.NextId();
+            var agentCenterId = YitIdHelper.NextId();
+            var agentProviderMenuId = YitIdHelper.NextId();
+            var agentManageMenuId = YitIdHelper.NextId();
+            var agentResourceMenuId = YitIdHelper.NextId();
+            var agentAccessMenuId = YitIdHelper.NextId();
             List<FunctionEntity> functions = [
                 new FunctionEntity() { Id = dashboardId, Name = "欢迎使用", Code = "dashboard",Remark = "此项主要是为了控制首页显示内容有个归属" },
                 new FunctionEntity() { Id = welcomeId, Name = "系统主页", ParentId = dashboardId, Code = "welcome",Remark = "前端未控制此功能权限,一定会显示" },
@@ -137,6 +142,25 @@ public class DataSeed : ISingletonDependency
                 new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = myInstanceId, Name = "详细信息", Code = "workflow.my.view" },
                 new FunctionEntity() { Id = waitingAuditingId, ParentId = workflowId, Name = "待办事项", Code = "workflow.auditing" },
                 new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = waitingAuditingId, Name = "流程审批", Code = "workflow.auditing.approve" },
+                new FunctionEntity() { Id = agentCenterId, Name = "智能体中心", Code = "agent" },
+                new FunctionEntity() { Id = agentProviderMenuId, ParentId = agentCenterId, Name = "连接器管理", Code = "agent.provider" },
+                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentProviderMenuId, Name = "连接器新增", Code = "agent.provider.add" },
+                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentProviderMenuId, Name = "连接器编辑", Code = "agent.provider.edit" },
+                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentProviderMenuId, Name = "连接器查看", Code = "agent.provider.view" },
+                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentProviderMenuId, Name = "连接器删除", Code = "agent.provider.delete" },
+                new FunctionEntity() { Id = agentManageMenuId, ParentId = agentCenterId, Name = "智能体管理", Code = "agent.manage" },
+                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentManageMenuId, Name = "智能体新增", Code = "agent.manage.add" },
+                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentManageMenuId, Name = "智能体编辑", Code = "agent.manage.edit" },
+                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentManageMenuId, Name = "智能体查看", Code = "agent.manage.view" },
+                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentManageMenuId, Name = "智能体删除", Code = "agent.manage.delete" },
+                new FunctionEntity() { Id = agentResourceMenuId, ParentId = agentCenterId, Name = "子资源管理", Code = "agent.resource" },
+                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentResourceMenuId, Name = "子资源新增", Code = "agent.resource.add" },
+                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentResourceMenuId, Name = "子资源编辑", Code = "agent.resource.edit" },
+                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentResourceMenuId, Name = "子资源查看", Code = "agent.resource.view" },
+                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentResourceMenuId, Name = "子资源删除", Code = "agent.resource.delete" },
+                new FunctionEntity() { Id = agentAccessMenuId, ParentId = agentCenterId, Name = "智能体授权", Code = "agent.access" },
+                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentAccessMenuId, Name = "授权查看", Code = "agent.access.view" },
+                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentAccessMenuId, Name = "授权分配", Code = "agent.access.assign" },
             ];
             await _db.Insertable(functions).ExecuteCommandAsync();
             Console.WriteLine("初始化功能数据");

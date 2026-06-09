@@ -1,5 +1,6 @@
 using CozeNet.Core;
 using DataChat.Core.Abstractions;
+using DataChat.Core.Configuration;
 
 namespace DataChat.Providers.Coze;
 
@@ -14,14 +15,30 @@ public sealed class CozeClientFactory
         _apiKeyStore = apiKeyStore;
     }
 
+    public Task<Context> CreateContextAsync(
+        CozeDomainOptions coze,
+        GlobalDefaults defaults,
+        CancellationToken cancellationToken = default) =>
+        CreateContextAsync(
+            coze.Endpoint ?? defaults.CozeEndpoint,
+            coze.ApiKey,
+            coze.ApiKeyRef,
+            cancellationToken);
+
     public async Task<Context> CreateContextAsync(
         string endpoint,
-        string apiKeyRef,
+        string? apiKey,
+        string? apiKeyRef,
         CancellationToken cancellationToken = default)
     {
-        var token = await _apiKeyStore.GetAsync(apiKeyRef, cancellationToken);
+        var token = !string.IsNullOrWhiteSpace(apiKey)
+            ? apiKey.Trim()
+            : await _apiKeyStore.GetAsync(apiKeyRef ?? "", cancellationToken);
         if (string.IsNullOrWhiteSpace(token))
-            throw new InvalidOperationException($"未配置 Coze API 密钥：ApiKeys:{apiKeyRef}");
+            throw new InvalidOperationException(
+                string.IsNullOrWhiteSpace(apiKeyRef)
+                    ? "未配置 Coze API 密钥，请在管理后台连接器中填写 apiKey。"
+                    : $"未配置 Coze API 密钥：ApiKeys:{apiKeyRef}");
 
         return new Context
         {

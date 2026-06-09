@@ -18,8 +18,7 @@ public sealed class CozeResourceService
                 DomainId = d.Id,
                 DisplayName = d.DisplayName,
                 BotId = d.Coze!.BotId,
-                Endpoint = d.Coze.Endpoint ?? _domains.Current.Defaults.CozeEndpoint,
-                ApiKeyRef = d.Coze.ApiKeyRef
+                Endpoint = d.Coze.Endpoint ?? _domains.Current.Defaults.CozeEndpoint
             })
             .ToList();
 }
@@ -30,5 +29,4 @@ public sealed class CozeBotSummary
     public required string DisplayName { get; init; }
     public required string BotId { get; init; }
     public required string Endpoint { get; init; }
-    public required string ApiKeyRef { get; init; }
 }

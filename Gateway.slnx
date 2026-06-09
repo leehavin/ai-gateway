@@ -32,6 +32,8 @@
     <File Path="db/chat/01-schema.sql" />
     <File Path="db/chat/02-seed-domains.sql" />
     <File Path="db/chat/03-add-user-id.sql" />
+    <File Path="db/chat/04-agent-management.sql" />
+    <File Path="db/chat/05-migrate-dc-domain-to-agent.sql" />
   </Folder>
 
   <Folder Name="/docs/">
@@ -43,6 +45,7 @@
     <File Path="docs/Domains-Database.md" />
 
     <File Path="docs/DESIGN-WinForms-DataChat.md" />
+    <File Path="docs/DESIGN-Agent-Management.md" />
 
   </Folder>
 

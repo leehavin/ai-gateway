@@ -82,8 +82,14 @@ export function isEmbeddedHost(): boolean {
   return embeddedHost
 }
 
+function requireLoginEnv(): boolean {
+  return import.meta.env.VITE_REQUIRE_LOGIN === 'true'
+}
+
 export function getAuthToken(): string {
-  return runtimeToken ?? readInitialToken() ?? 'demo-token'
+  const stored = runtimeToken ?? readInitialToken()
+  if (stored) return stored
+  return requireLoginEnv() ? '' : 'demo-token'
 }
 
 export function getHostUser(): HostUser | null {

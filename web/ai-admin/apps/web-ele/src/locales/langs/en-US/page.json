@@ -30,6 +30,24 @@
     },
     "config": {
       "title": "System Configuration"
+    },
+    "onlineUser": {
+      "title": "Online Users"
+    }
+  },
+  "agent": {
+    "title": "Agent Center",
+    "providerAccount": {
+      "title": "Connectors"
+    },
+    "manage": {
+      "title": "Agents"
+    },
+    "resource": {
+      "title": "Resources"
+    },
+    "access": {
+      "title": "Access Control"
     }
   }
 }

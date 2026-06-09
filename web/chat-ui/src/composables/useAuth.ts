@@ -62,6 +62,8 @@ export function useAuth() {
 
     if (!requireLoginEnv() && getAuthToken() === 'demo-token') {
       authenticated.value = true
+    } else if (!requireLoginEnv() && getAuthToken()) {
+      authenticated.value = true
     } else {
       authenticated.value = false
     }

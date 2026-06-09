@@ -122,10 +122,7 @@ public sealed class CozeOpenApiClient
         GlobalDefaults defaults,
         CancellationToken cancellationToken)
     {
-        var ctx = await _clientFactory.CreateContextAsync(
-            coze.Endpoint ?? defaults.CozeEndpoint,
-            coze.ApiKeyRef,
-            cancellationToken);
+        var ctx = await _clientFactory.CreateContextAsync(coze, defaults, cancellationToken);
 
         var client = _httpClientFactory.CreateClient(CozeHttpClientNames.Client);
         var items = new List<CozeWorkflowCatalogItem>();
@@ -199,10 +196,7 @@ public sealed class CozeOpenApiClient
     {
         try
         {
-            var ctx = await _clientFactory.CreateContextAsync(
-                coze.Endpoint ?? defaults.CozeEndpoint,
-                coze.ApiKeyRef,
-                cancellationToken);
+            var ctx = await _clientFactory.CreateContextAsync(coze, defaults, cancellationToken);
 
             var client = _httpClientFactory.CreateClient(CozeHttpClientNames.Client);
             var id = Uri.EscapeDataString(workflowId.Trim());
@@ -331,10 +325,7 @@ public sealed class CozeOpenApiClient
         GlobalDefaults defaults,
         CancellationToken cancellationToken)
     {
-        var ctx = await _clientFactory.CreateContextAsync(
-            coze.Endpoint ?? defaults.CozeEndpoint,
-            coze.ApiKeyRef,
-            cancellationToken);
+        var ctx = await _clientFactory.CreateContextAsync(coze, defaults, cancellationToken);
 
         var url = $"https://{ctx.EndPoint}/v1/bot/get_online_info?bot_id={Uri.EscapeDataString(coze.BotId)}";
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -392,10 +383,7 @@ public sealed class CozeOpenApiClient
         string workflowId,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var ctx = await _clientFactory.CreateContextAsync(
-            coze.Endpoint ?? defaults.CozeEndpoint,
-            coze.ApiKeyRef,
-            cancellationToken);
+        var ctx = await _clientFactory.CreateContextAsync(coze, defaults, cancellationToken);
 
         var url = $"https://{ctx.EndPoint}{path}";
         using var request = new HttpRequestMessage(HttpMethod.Post, url);

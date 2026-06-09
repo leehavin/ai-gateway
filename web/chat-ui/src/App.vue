@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { ApiUnauthorizedError } from './api/http'
 import AppHeader from './components/AppHeader.vue'
 import LoginView from './components/LoginView.vue'
 import { useAuth } from './composables/useAuth'
@@ -43,11 +44,16 @@ const {
   needsLogin,
   isEmbedded,
   isAuthenticated,
+  displayName,
   login: authLogin,
+  logout: authLogout,
+  verifySession,
 } = useAuth()
 
-const { domains, cozeBots, health, loading, error, domainId, refresh } = useDomains()
+const canLoadData = computed(() => isAuthenticated.value && !authChecking.value)
+const { domains, cozeBots, health, loading, error, domainId, refresh } = useDomains(canLoadData)
 const history = useHistory(domainId)
+const noAgents = computed(() => !loading.value && !error.value && domains.value.length === 0)
 const {
   searchKey,
   asideExpanded,
@@ -247,14 +253,34 @@ function onApplyChatParams(v: ChatGenerationParameters) {
   showToast('生成参数已保存')
 }
 
+async function loadWorkspace() {
+  try {
+    await refresh()
+    if (domainId.value) await history.refresh()
+  } catch (e) {
+    if (e instanceof ApiUnauthorizedError) {
+      authLogout()
+      await verifySession()
+    }
+  }
+}
+
+watch(canLoadData, (ready) => {
+  if (ready) void loadWorkspace()
+}, { immediate: true })
+
 async function onLogin(username: string, password: string) {
   try {
     await authLogin(username, password)
-    await refresh()
-    await history.refresh()
+    await loadWorkspace()
   } catch {
     /* error shown on LoginView */
   }
+}
+
+async function onLogout() {
+  authLogout()
+  await verifySession()
 }
 </script>
 
@@ -272,6 +298,14 @@ async function onLogin(username: string, password: string) {
     等待宿主系统注入用户信息…
   </div>
 
+  <div v-else-if="loading && domains.length === 0" class="auth-loading">
+    正在加载智能体…
+  </div>
+
+  <div v-else-if="noAgents" class="auth-loading empty-agents">
+    <p>当前账号未分配可用智能体，请联系管理员在「智能体授权」中配置。</p>
+    <button type="button" class="empty-agents-logout" @click="onLogout">退出登录</button>
+  </div>
 
   <div v-else class="app-shell">
     <HistoryPanel
@@ -311,11 +345,13 @@ async function onLogin(username: string, password: string) {
         :loading="loading"
         :error="error"
         :health="health"
+        :user-name="displayName"
         :show-menu="isNarrow || !asideExpanded"
         :can-export="canExportSession"
         :params-open="paramsPanelOpen"
         @update:domain-id="(v) => (domainId = v)"
-        @refresh="refresh"
+        @refresh="loadWorkspace"
+        @logout="onLogout"
         @toggle-menu="toggleAside"
         @toggle-history="toggleAside"
         @open-params="toggleParamsPanel"
@@ -536,6 +572,27 @@ async function onLogin(username: string, password: string) {
   height: 100vh;
   color: var(--dc-text-secondary);
   font-size: 14px;
+}
+
+.empty-agents {
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+}
+
+.empty-agents-logout {
+  padding: 8px 20px;
+  border: 1px solid var(--dc-border);
+  border-radius: var(--dc-radius-pill);
+  background: #fff;
+  color: var(--dc-text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.empty-agents-logout:hover {
+  border-color: rgba(94, 124, 224, 0.45);
 }
 
 .app-shell {

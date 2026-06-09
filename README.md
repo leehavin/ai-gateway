@@ -196,6 +196,9 @@ Gateway 与 Admin **可共用同一数据库**（如 `chat`），表前缀互不
 sqlcmd -S <host> -d chat -i db\chat\01-schema.sql
 sqlcmd -S <host> -d chat -i db\chat\02-seed-domains.sql
 sqlcmd -S <host> -d chat -i db\chat\03-add-user-id.sql
+sqlcmd -S <host> -d chat -i db\chat\04-agent-management.sql
+# 可选：从旧 dc_domain 迁移
+sqlcmd -S <host> -d chat -i db\chat\05-migrate-dc-domain-to-agent.sql
 ```
 
 在 `dc_domain` 中把 Coze 的 Bot ID 换成真实值，并核对 `dc_global_defaults.dbgpt_base_url`。
@@ -472,6 +475,7 @@ curl http://<dbgpt-host>:5670/api/v2/serve/model/models
 | [docs/Domains-Database.md](docs/Domains-Database.md) | 领域库表、SqlSugar |
 | [docs/DB-GPT-API-Coverage.md](docs/DB-GPT-API-Coverage.md) | DB-GPT 对接矩阵 |
 | [docs/DESIGN-WinForms-DataChat.md](docs/DESIGN-WinForms-DataChat.md) | WinForms 架构 |
+| [docs/DESIGN-Agent-Management.md](docs/DESIGN-Agent-Management.md) | 多 Provider 智能体/子资源管理与权限 |
 | [DB-GPT 官方文档](http://docs.dbgpt.cn/) | 部署与 API |
 | [扣子 Open API](https://www.coze.cn/docs/developer_guides/coze_api_overview) | Coze 鉴权与 Bot |
 

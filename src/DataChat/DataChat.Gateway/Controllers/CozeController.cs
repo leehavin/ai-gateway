@@ -1,3 +1,4 @@
+using DataChat.Gateway.Auth;
 using DataChat.Gateway.Models;
 using DataChat.Gateway.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -10,16 +11,30 @@ public sealed class CozeController : ControllerBase
 {
     private readonly CozeResourceService _coze;
     private readonly CozeWorkflowService _workflows;
+    private readonly ICurrentUserService _currentUser;
+    private readonly IAgentAccessService _access;
 
-    public CozeController(CozeResourceService coze, CozeWorkflowService workflows)
+    public CozeController(
+        CozeResourceService coze,
+        CozeWorkflowService workflows,
+        ICurrentUserService currentUser,
+        IAgentAccessService access)
     {
         _coze = coze;
         _workflows = workflows;
+        _currentUser = currentUser;
+        _access = access;
     }
 
     [HttpGet("bots")]
-    public ActionResult<IReadOnlyList<CozeBotSummary>> ListBots() =>
-        Ok(_coze.ListConfiguredBots());
+    public async Task<ActionResult<IReadOnlyList<CozeBotSummary>>> ListBots(CancellationToken cancellationToken)
+    {
+        var bots = _coze.ListConfiguredBots();
+        var allowed = await _access.GetAllowedAgentIdsAsync(_currentUser.Current, cancellationToken);
+        if (allowed is not null)
+            bots = bots.Where(b => allowed.Contains(b.DomainId)).ToList();
+        return Ok(bots);
+    }
 
     /// <summary>列出 Coze 领域可执行工作流（配置 + Bot 在线绑定）。</summary>
     [HttpGet("workflows")]

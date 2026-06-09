@@ -1,6 +1,7 @@
 using DataChat.Core.Abstractions;
 using DataChat.Core.Chat;
 using DataChat.Core.Configuration;
+using DataChat.Gateway.Auth;
 using DataChat.Gateway.Models;
 using DataChat.Providers.Coze;
 
@@ -12,11 +13,19 @@ public sealed class CozeWorkflowService
 
     private readonly IDomainCatalog _domains;
     private readonly CozeOpenApiClient _cozeApi;
+    private readonly ICurrentUserService _currentUser;
+    private readonly IAgentAccessService _access;
 
-    public CozeWorkflowService(IDomainCatalog domains, CozeOpenApiClient cozeApi)
+    public CozeWorkflowService(
+        IDomainCatalog domains,
+        CozeOpenApiClient cozeApi,
+        ICurrentUserService currentUser,
+        IAgentAccessService access)
     {
         _domains = domains;
         _cozeApi = cozeApi;
+        _currentUser = currentUser;
+        _access = access;
     }
 
     public DomainProfile? ResolveDomain(string domainId) =>
@@ -50,6 +59,11 @@ public sealed class CozeWorkflowService
         var list = await _cozeApi.ListBotWorkflowsAsync(domain, defaults, cancellationToken);
 
         using var gate = new SemaphoreSlim(WorkflowSchemaConcurrency);
+        var allowedWorkflows = await _access.GetAllowedWorkflowIdsAsync(
+            _currentUser.Current, domainId, cancellationToken);
+        if (allowedWorkflows is not null)
+            list = list.Where(w => allowedWorkflows.Contains(w.WorkflowId)).ToList();
+
         var tasks = list.Select(w => EnrichWorkflowDtoAsync(coze, defaults, w, cancellationToken, gate));
         var items = await Task.WhenAll(tasks);
         return items.OrderBy(i => i.DisplayName).ToList();

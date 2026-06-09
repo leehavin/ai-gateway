@@ -3,6 +3,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using AIAdmin.Api.Host.Options;
+using AIAdmin.Application.Gateway;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
@@ -36,10 +37,20 @@ namespace AIAdmin.Api.Host
             var configuration = context.Services.GetConfiguration();
             var hostingEnvironment = context.Services.GetHostingEnvironment();
 
+            ConfigureDataChatGateway(context, configuration);
             CoinfigureControllers(context, hostingEnvironment);
             ConfigureAuthorizationServices(context, configuration);
             ConfigureSwaggerServices(context);
             ConfigureCors(context, configuration);
+        }
+
+        private static void ConfigureDataChatGateway(ServiceConfigurationContext context, IConfiguration configuration)
+        {
+            context.Services.Configure<DataChatGatewayOptions>(configuration.GetSection("DataChatGateway"));
+            context.Services.AddHttpClient(nameof(DataChatGatewayNotifier), client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(2);
+            });
         }
 
         private void CoinfigureControllers(ServiceConfigurationContext context, IWebHostEnvironment hostEnvironment)
@@ -112,6 +123,7 @@ namespace AIAdmin.Api.Host
             context.Services.AddAbpSwaggerGen(options =>
             {
                 options.SwaggerDoc("system", new OpenApiInfo { Title = "系统管理" });
+                options.SwaggerDoc("agent", new OpenApiInfo { Title = "智能体管理" });
                 options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, "AIAdmin.Application.xml"), true);
                 options.SwaggerDoc("workflow", new OpenApiInfo { Title = "工作流管理" });
                 options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, "AIAdmin.Workflow.xml"), true);
@@ -214,6 +226,7 @@ namespace AIAdmin.Api.Host
                 app.UseSwaggerUI(options =>
                 {
                     options.SwaggerEndpoint("/swagger/system/swagger.json", "系统管理");
+                    options.SwaggerEndpoint("/swagger/agent/swagger.json", "智能体管理");
                     options.SwaggerEndpoint("/swagger/workflow/swagger.json", "工作流管理");
                     var responseInterceptor = @" (res) => {
                             const token = res.headers.accesstoken;

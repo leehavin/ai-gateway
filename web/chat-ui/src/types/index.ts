@@ -67,7 +67,6 @@ export interface CozeBotSummary {
   displayName: string
   botId: string
   endpoint: string
-  apiKeyRef: string
 }
 
 export interface CozeWorkflowInputSpec {

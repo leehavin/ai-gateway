@@ -1,0 +1,21 @@
+{
+  "assignAgents": "Assign Agents",
+  "assignResources": "Assign Resources",
+  "filterAgent": "Filter by agent",
+  "columns": {
+    "name": "Role",
+    "description": "Description",
+    "agents": "Agents",
+    "resources": "Resources"
+  },
+  "search": {
+    "name": "Role name"
+  },
+  "table": {
+    "agentId": "Agent ID",
+    "displayName": "Display Name",
+    "provider": "Provider",
+    "resourceType": "Type",
+    "externalId": "External ID"
+  }
+}

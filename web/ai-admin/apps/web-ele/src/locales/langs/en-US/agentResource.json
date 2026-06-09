@@ -1,0 +1,39 @@
+{
+  "add": "Add Resource",
+  "edit": "Edit Resource",
+  "view": "View Resource",
+  "columns": {
+    "agent": "Agent",
+    "agentId": "Agent ID",
+    "resourceType": "Type",
+    "externalId": "External ID",
+    "displayName": "Display Name",
+    "sortOrder": "Sort",
+    "enabled": "Status"
+  },
+  "search": {
+    "agentId": "Agent ID",
+    "displayName": "Name / ID",
+    "resourceType": "Type"
+  },
+  "form": {
+    "agent": "Agent",
+    "resourceType": "Type",
+    "externalId": "External ID",
+    "displayName": "Display Name",
+    "description": "Description",
+    "configJson": "Config JSON",
+    "sortOrder": "Sort",
+    "enabled": "Status",
+    "remark": "Remark",
+    "placeholder": {
+      "agent": "Select agent",
+      "externalId": "e.g. Coze workflow_id"
+    },
+    "validate": {
+      "agent": "Select agent",
+      "resourceType": "Select type",
+      "externalId": "Enter external ID"
+    }
+  }
+}

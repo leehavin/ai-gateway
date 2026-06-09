@@ -1,6 +1,8 @@
 using DataChat.Core.Abstractions;
 using DataChat.Core.Configuration;
+using DataChat.Gateway.Auth;
 using DataChat.Gateway.Models;
+using DataChat.Gateway.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DataChat.Gateway.Controllers;
@@ -10,12 +12,29 @@ namespace DataChat.Gateway.Controllers;
 public sealed class DomainsController : ControllerBase
 {
     private readonly IDomainCatalog _catalog;
+    private readonly ICurrentUserService _currentUser;
+    private readonly IAgentAccessService _access;
 
-    public DomainsController(IDomainCatalog catalog) => _catalog = catalog;
+    public DomainsController(
+        IDomainCatalog catalog,
+        ICurrentUserService currentUser,
+        IAgentAccessService access)
+    {
+        _catalog = catalog;
+        _currentUser = currentUser;
+        _access = access;
+    }
 
     [HttpGet]
-    public ActionResult<IReadOnlyList<DomainItemDto>> List() =>
-        Ok(_catalog.Current.Domains.Select(ToDto).ToList());
+    public async Task<ActionResult<IReadOnlyList<DomainItemDto>>> List(CancellationToken cancellationToken)
+    {
+        var domains = _catalog.Current.Domains;
+        var allowed = await _access.GetAllowedAgentIdsAsync(_currentUser.Current, cancellationToken);
+        if (allowed is not null)
+            domains = domains.Where(d => allowed.Contains(d.Id)).ToList();
+
+        return Ok(domains.Select(ToDto).ToList());
+    }
 
     /// <summary>从数据库或文件重新加载领域配置。</summary>
     [HttpPost("reload")]

@@ -1,0 +1,40 @@
+{
+  "add": "Add Connector",
+  "edit": "Edit Connector",
+  "view": "View Connector",
+  "columns": {
+    "name": "Name",
+    "provider": "Provider",
+    "endpoint": "Endpoint",
+    "hasApiKey": "API Key",
+    "sortOrder": "Sort",
+    "enabled": "Status",
+    "remark": "Remark"
+  },
+  "search": {
+    "name": "Name",
+    "provider": "Provider"
+  },
+  "form": {
+    "provider": "Provider",
+    "name": "Name",
+    "endpoint": "Endpoint",
+    "apiKey": "API Key",
+    "configJson": "Config JSON",
+    "sortOrder": "Sort",
+    "enabled": "Status",
+    "remark": "Remark",
+    "placeholder": {
+      "provider": "Select provider",
+      "name": "Enter name",
+      "endpoint": "e.g. api.coze.cn",
+      "apiKey": "Required for Coze/OpenAI on create; optional for DB-GPT; leave blank to keep on edit",
+      "configJson": "Optional provider config",
+      "remark": "Remark"
+    },
+    "validate": {
+      "provider": "Select provider",
+      "name": "Enter name"
+    }
+  }
+}

@@ -11,6 +11,7 @@ const props = defineProps<{
   loading: boolean
   error: string | null
   health: GatewayHealth | null
+  userName?: string
   showMenu: boolean
   canExport?: boolean
   paramsOpen?: boolean
@@ -19,6 +20,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:domainId': [value: string]
   refresh: []
+  logout: []
   toggleMenu: []
   toggleHistory: []
   openParams: []
@@ -161,6 +163,16 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
       </div>
       <button type="button" class="dc-icon-btn" title="刷新配置" @click="emit('refresh')">
         <i class="icon-refresh"></i>
+      </button>
+      <button
+        v-if="userName"
+        type="button"
+        class="user-chip"
+        title="退出登录"
+        @click="emit('logout')"
+      >
+        <span class="user-chip-name">{{ userName }}</span>
+        <span class="user-chip-action">退出</span>
       </button>
     </div>
   </header>
@@ -413,10 +425,45 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
   }
 }
 
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 4px;
+  padding: 6px 12px;
+  border: 1px solid var(--dc-border);
+  border-radius: var(--dc-radius-pill);
+  background: #fff;
+  color: var(--dc-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.user-chip:hover {
+  border-color: rgba(94, 124, 224, 0.4);
+  color: var(--dc-text);
+}
+
+.user-chip-name {
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--dc-text);
+}
+
+.user-chip-action {
+  color: var(--dc-brand);
+}
+
 @media (max-width: 640px) {
   .domain-field-label {
     display: none;
   }
 
+  .user-chip-name {
+    max-width: 64px;
+  }
 }
 </style>

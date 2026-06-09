@@ -1,5 +1,6 @@
 using DataChat.Core.Abstractions;
 using DataChat.Core.Configuration;
+using DataChat.Infrastructure.Persistence.Agents;
 using DataChat.Infrastructure.Persistence.Domains;
 using SqlSugar;
 
@@ -17,18 +18,29 @@ public sealed class SqlSugarDomainsConfigurationStore : IDomainsConfigurationSto
             .Where(x => x.Id == 1)
             .FirstAsync(cancellationToken);
 
-        var domainRows = (await _db.Queryable<DcDomainEntity>()
-            .Where(x => x.Enabled)
-            .ToListAsync(cancellationToken))
-            .OrderBy(x => x.SortOrder)
-            .ThenBy(x => x.DisplayName)
-            .ToList();
+        var defaults = DomainEntityMapper.ToDefaults(defaultsRow);
+        List<DomainProfile> domains;
+
+        if (await AgentDomainLoader.HasEnabledAgentsAsync(_db, cancellationToken))
+        {
+            domains = await AgentDomainLoader.LoadAsync(_db, defaults, cancellationToken);
+        }
+        else
+        {
+            var domainRows = (await _db.Queryable<DcDomainEntity>()
+                    .Where(x => x.Enabled)
+                    .ToListAsync(cancellationToken))
+                .OrderBy(x => x.SortOrder)
+                .ThenBy(x => x.DisplayName)
+                .ToList();
+            domains = domainRows.Select(DomainEntityMapper.ToProfile).ToList();
+        }
 
         return new DomainsConfiguration
         {
             Version = defaultsRow?.Version ?? 1,
-            Defaults = DomainEntityMapper.ToDefaults(defaultsRow),
-            Domains = domainRows.Select(DomainEntityMapper.ToProfile).ToList()
+            Defaults = defaults,
+            Domains = domains
         };
     }
 }

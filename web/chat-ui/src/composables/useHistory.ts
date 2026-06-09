@@ -42,9 +42,13 @@ export function useHistory(domainId: Ref<string>) {
   }
 
   watch(domainId, () => {
+    if (!domainId.value) {
+      historyList.value = []
+      return
+    }
     searchKey.value = ''
     void refresh()
-  }, { immediate: true })
+  })
 
   let unbindMq: (() => void) | undefined
   onMounted(() => { unbindMq = bindNarrowMq() })

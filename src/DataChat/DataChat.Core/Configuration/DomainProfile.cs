@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DataChat.Core.Configuration;
 
 public sealed class DomainsConfiguration
@@ -43,7 +45,11 @@ public sealed class CozeDomainOptions
 {
     /// <summary>Coze Bot ID（开发页 URL 中 bot 后的数字）。</summary>
     public required string BotId { get; init; }
+    /// <summary>旧版 dc_domain / 文件配置中的 ApiKeys 引用。</summary>
     public string ApiKeyRef { get; set; } = "coze-main";
+    /// <summary>运行时从 dc_provider_account 注入，不序列化到配置 JSON。</summary>
+    [JsonIgnore]
+    public string? ApiKey { get; set; }
     /// <summary>API 域名，默认 api.coze.cn；国际版 api.coze.com。</summary>
     public string? Endpoint { get; set; }
     public bool AutoSaveHistory { get; set; } = true;
@@ -88,14 +94,18 @@ public sealed class CozeWorkflowInputOptions
 
 public sealed class CustomDomainOptions
 {
-    public required string Endpoint { get; init; }
+    public string Endpoint { get; set; } = "";
     public string ApiKeyRef { get; set; } = "default";
+    [JsonIgnore]
+    public string? ApiKey { get; set; }
     public string Adapter { get; set; } = "default";
     public string? AuthHeaderName { get; set; }
 }
 
 public sealed class OpenAiDomainOptions
 {
-    public required string BaseUrl { get; init; }
+    public string BaseUrl { get; set; } = "";
     public string ApiKeyRef { get; set; } = "default";
+    [JsonIgnore]
+    public string? ApiKey { get; set; }
 }

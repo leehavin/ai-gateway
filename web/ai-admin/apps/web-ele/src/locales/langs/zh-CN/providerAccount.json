@@ -1,0 +1,40 @@
+{
+  "add": "新增连接器",
+  "edit": "编辑连接器",
+  "view": "查看连接器",
+  "columns": {
+    "name": "名称",
+    "provider": "类型",
+    "endpoint": "地址",
+    "hasApiKey": "已配密钥",
+    "sortOrder": "排序",
+    "enabled": "状态",
+    "remark": "备注"
+  },
+  "search": {
+    "name": "名称",
+    "provider": "类型"
+  },
+  "form": {
+    "provider": "类型",
+    "name": "名称",
+    "endpoint": "地址",
+    "apiKey": "API Key",
+    "configJson": "扩展配置 JSON",
+    "sortOrder": "排序",
+    "enabled": "状态",
+    "remark": "备注",
+    "placeholder": {
+      "provider": "请选择类型",
+      "name": "请输入名称",
+      "endpoint": "如 api.coze.cn 或 http://host:port",
+      "apiKey": "Coze/OpenAI 新增必填；DB-GPT 可留空；编辑留空不修改",
+      "configJson": "可选，Provider 级扩展配置",
+      "remark": "备注"
+    },
+    "validate": {
+      "provider": "请选择类型",
+      "name": "请输入名称"
+    }
+  }
+}

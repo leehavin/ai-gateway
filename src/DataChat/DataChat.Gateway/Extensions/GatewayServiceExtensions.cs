@@ -25,7 +25,6 @@ public static class GatewayServiceExtensions
         services.AddSingleton<SessionTokenService>();
         services.AddSingleton<GatewayAuthService>();
         services.AddSingleton<ICurrentUserService, CurrentUserService>();
-        services.AddSingleton<IHostAuthProvider, LocalConfigAuthProvider>();
 
         var gatewayOptions = configuration.GetSection(GatewayOptions.SectionName).Get<GatewayOptions>()
             ?? new GatewayOptions();
@@ -43,12 +42,22 @@ public static class GatewayServiceExtensions
 
         var baseDir = AppContext.BaseDirectory;
         var sqlSugar = DataChatDatabaseExtensions.AddDataChatDatabase(services, dbOptions, domainsSetup, baseDir);
+        if (sqlSugar is not null)
+            services.AddSingleton<IHostAuthProvider>(_ => new SqlSugarHostAuthProvider(sqlSugar));
+        else
+            services.AddSingleton<IHostAuthProvider, LocalConfigAuthProvider>();
+
         var domains = DomainsConfigurationRegistrar.RegisterDomains(services, domainsSetup, baseDir, sqlSugar);
         services.AddSingleton<FileStorageService>();
         services.AddSingleton<GatewaySessionService>();
         services.AddSingleton<FeedbackService>();
         services.AddSingleton<GatewayChatService>();
         services.AddSingleton<DbgptResourceService>();
+        if (sqlSugar is not null)
+            services.AddSingleton<IAgentAccessService>(_ => new AgentAccessService(sqlSugar));
+        else
+            services.AddSingleton<IAgentAccessService, UnrestrictedAgentAccessService>();
+
         services.AddSingleton<CozeResourceService>();
         services.AddSingleton<CozeWorkflowService>();
         services.AddSingleton<CozeClientFactory>();

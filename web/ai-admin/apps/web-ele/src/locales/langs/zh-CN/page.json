@@ -34,5 +34,20 @@
     "onlineUser": {
       "title": "在线用户"
     }
+  },
+  "agent": {
+    "title": "智能体中心",
+    "providerAccount": {
+      "title": "连接器管理"
+    },
+    "manage": {
+      "title": "智能体管理"
+    },
+    "resource": {
+      "title": "子资源管理"
+    },
+    "access": {
+      "title": "智能体授权"
+    }
   }
 }

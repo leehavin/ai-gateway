@@ -1,0 +1,21 @@
+{
+  "assignAgents": "分配智能体",
+  "assignResources": "分配子资源",
+  "filterAgent": "筛选智能体",
+  "columns": {
+    "name": "角色",
+    "description": "描述",
+    "agents": "智能体",
+    "resources": "子资源"
+  },
+  "search": {
+    "name": "角色名"
+  },
+  "table": {
+    "agentId": "智能体 ID",
+    "displayName": "显示名",
+    "provider": "类型",
+    "resourceType": "资源类型",
+    "externalId": "外部 ID"
+  }
+}
