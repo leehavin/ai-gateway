@@ -45,12 +45,14 @@ public sealed class CozeOpenApiClient
                 var apiList = await ListWorkflowsFromApiAsync(coze, defaults, cancellationToken);
                 MergeWorkflowCatalog(byId, apiList);
             }
-            catch when (byId.Count > 0)
+            catch
             {
-                /* 有本地 workflows 配置时，列表 API 失败仍可用 */
+                /* workspace 列表 API 失败时继续尝试 Bot 绑定与本地配置 */
             }
         }
-        else
+
+        // workspace 列表为空或未配置 workspaceId 时，回退 Bot 在线绑定的工作流
+        if (byId.Count == 0 && !string.IsNullOrWhiteSpace(coze.BotId))
         {
             try
             {
@@ -63,18 +65,10 @@ public sealed class CozeOpenApiClient
                     InputParameter = "BOT_USER_INPUT"
                 }));
             }
-            catch when (byId.Count > 0)
+            catch
             {
-                /* 有本地配置则忽略 Bot 元数据失败 */
+                /* Bot 元数据失败时保留本地 workflows 或返回空列表 */
             }
-        }
-
-        if (byId.Count == 0)
-        {
-            throw new InvalidOperationException(
-                string.IsNullOrWhiteSpace(coze.WorkspaceId)
-                    ? "未找到工作流：请在 coze.workflows 中配置，或设置 coze.workspaceId 后调用 GET /v1/workflows。"
-                    : "工作流列表为空：请确认 workspaceId、PAT 空间权限，且工作流已发布。");
         }
 
         return byId.Values.OrderBy(w => w.DisplayName).ToList();
@@ -136,7 +130,7 @@ public sealed class CozeOpenApiClient
         var client = _httpClientFactory.CreateClient(CozeHttpClientNames.Client);
         var items = new List<CozeWorkflowCatalogItem>();
         var pageNum = 1;
-        var publishStatus = string.IsNullOrWhiteSpace(coze.ListPublishStatus) ? "published" : coze.ListPublishStatus.Trim();
+        var publishStatus = string.IsNullOrWhiteSpace(coze.ListPublishStatus) ? "published_online" : coze.ListPublishStatus.Trim();
 
         while (pageNum <= WorkflowListMaxPages)
         {
@@ -194,6 +188,105 @@ public sealed class CozeOpenApiClient
     {
         var list = await ListBotWorkflowsAsync(domain, defaults, cancellationToken);
         return list.FirstOrDefault(w => string.Equals(w.WorkflowId, workflowId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>拉取工作流开始节点 input.parameters（版本列表 / 详情多路径尝试）。</summary>
+    public async Task<IReadOnlyList<CozeWorkflowInputSpec>> TryGetWorkflowInputSpecsAsync(
+        CozeDomainOptions coze,
+        GlobalDefaults defaults,
+        string workflowId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var ctx = await _clientFactory.CreateContextAsync(
+                coze.Endpoint ?? defaults.CozeEndpoint,
+                coze.ApiKeyRef,
+                cancellationToken);
+
+            var client = _httpClientFactory.CreateClient(CozeHttpClientNames.Client);
+            var id = Uri.EscapeDataString(workflowId.Trim());
+            var baseUrl = $"https://{ctx.EndPoint}";
+
+            var urls = new[]
+            {
+                $"{baseUrl}/v1/workflows/{id}/versions?include_input_output=true&page_size=1&publish_status=published_online",
+                $"{baseUrl}/v1/workflows/{id}/versions?include_input_output=true&page_size=1&publish_status=all",
+                $"{baseUrl}/v1/workflows/{id}?connector_id=1024",
+                $"{baseUrl}/v1/workflows/{id}"
+            };
+
+            foreach (var url in urls)
+            {
+                var specs = await TryFetchInputSpecsFromUrlAsync(
+                    client, ctx.AccessToken, url, cancellationToken);
+                if (specs.Count > 0)
+                    return specs;
+            }
+
+            return [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static async Task<IReadOnlyList<CozeWorkflowInputSpec>> TryFetchInputSpecsFromUrlAsync(
+        HttpClient client,
+        string accessToken,
+        string url,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        using var response = await client.SendAsync(request, cancellationToken);
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            return [];
+
+        using var doc = JsonDocument.Parse(json);
+        return TryParseInputSpecsFromRoot(doc.RootElement);
+    }
+
+    private static IReadOnlyList<CozeWorkflowInputSpec> TryParseInputSpecsFromRoot(JsonElement root)
+    {
+        if (root.TryGetProperty("code", out var codeEl) &&
+            codeEl.ValueKind == JsonValueKind.Number &&
+            codeEl.GetInt64() != 0)
+            return [];
+
+        if (!root.TryGetProperty("data", out var data))
+            return [];
+
+        var parameters = FindInputParametersElement(data);
+        return parameters is null
+            ? []
+            : CozeWorkflowInputCatalog.ParseFromApiParameters(parameters);
+    }
+
+    private static JsonElement? FindInputParametersElement(JsonElement data)
+    {
+        if (data.TryGetProperty("input", out var directInput) &&
+            directInput.TryGetProperty("parameters", out var directParams) &&
+            directParams.ValueKind == JsonValueKind.Object &&
+            directParams.EnumerateObject().Any())
+            return directParams;
+
+        if (data.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in items.EnumerateArray())
+            {
+                if (item.TryGetProperty("input", out var itemInput) &&
+                    itemInput.TryGetProperty("parameters", out var itemParams) &&
+                    itemParams.ValueKind == JsonValueKind.Object &&
+                    itemParams.EnumerateObject().Any())
+                    return itemParams;
+            }
+        }
+
+        return null;
     }
 
     public async IAsyncEnumerable<ChatChunk> StreamRunAsync(
@@ -539,6 +632,7 @@ public sealed class CozeOpenApiClient
         [JsonPropertyName("debug_url")]
         public string? DebugUrl { get; set; }
     }
+
 }
 
 public sealed class CozeWorkflowCatalogItem
@@ -549,6 +643,10 @@ public sealed class CozeWorkflowCatalogItem
     public string? IconUrl { get; init; }
     public string InputParameter { get; init; } = "BOT_USER_INPUT";
     public string? AppId { get; init; }
+    public string? InputHint { get; init; }
+    public string? InputSummary { get; init; }
+    public bool NeedsAttachment { get; init; }
+    public IReadOnlyList<CozeWorkflowInputSpec> Inputs { get; init; } = [];
 }
 
 public sealed class CozeWorkflowResumeRequest

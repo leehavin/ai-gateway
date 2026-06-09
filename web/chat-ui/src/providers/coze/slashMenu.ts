@@ -1,4 +1,5 @@
 import type { SlashCommandItem, SlashMenuContext } from '../types'
+import { workflowMenuDesc } from './workflowInputHint'
 
 export function buildCozeSlashMenu(
   ctx: SlashMenuContext,
@@ -60,7 +61,7 @@ export function buildCozeSlashMenu(
       id: `coze-wf-${wf.workflowId}`,
       kind: 'action',
       label: wf.displayName,
-      desc: wf.description ? `工作流 · ${wf.description}` : `工作流 ${wf.workflowId}`,
+      desc: workflowMenuDesc(wf),
       category: '工作流',
       providerId: 'coze',
       action: 'run-workflow',

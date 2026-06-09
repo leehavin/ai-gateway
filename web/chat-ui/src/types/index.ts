@@ -70,6 +70,15 @@ export interface CozeBotSummary {
   apiKeyRef: string
 }
 
+export interface CozeWorkflowInputSpec {
+  name: string
+  type: string
+  required: boolean
+  label?: string
+  description?: string
+  accept?: string[]
+}
+
 export interface CozeWorkflowItem {
   workflowId: string
   displayName: string
@@ -77,6 +86,10 @@ export interface CozeWorkflowItem {
   iconUrl?: string
   appId?: string
   inputParameter: string
+  inputSummary?: string
+  inputHint?: string
+  needsAttachment?: boolean
+  inputs?: CozeWorkflowInputSpec[]
 }
 
 export interface CozeWorkflowInterrupt {

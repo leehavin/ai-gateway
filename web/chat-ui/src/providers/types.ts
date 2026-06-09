@@ -59,4 +59,11 @@ export interface ProviderPlugin {
 
 export type ProviderChatBanner =
   | { kind: 'workflow-interrupt'; nodeTitle?: string; onCancel: () => void }
-  | { kind: 'workflow-pending'; displayName: string; onCancel: () => void }
+  | {
+      kind: 'workflow-pending'
+      displayName: string
+      message?: string
+      inputSummary?: string
+      needsAttachment?: boolean
+      onCancel: () => void
+    }

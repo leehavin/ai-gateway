@@ -8,6 +8,8 @@ namespace DataChat.Gateway.Services;
 
 public sealed class CozeWorkflowService
 {
+    private const int WorkflowSchemaConcurrency = 4;
+
     private readonly IDomainCatalog _domains;
     private readonly CozeOpenApiClient _cozeApi;
 
@@ -43,21 +45,98 @@ public sealed class CozeWorkflowService
         if (error is not null) throw new InvalidOperationException(error);
 
         var domain = ResolveDomain(domainId)!;
-        var list = await _cozeApi.ListBotWorkflowsAsync(
-            domain,
-            _domains.Current.Defaults,
-            cancellationToken);
+        var coze = domain.Coze!;
+        var defaults = _domains.Current.Defaults;
+        var list = await _cozeApi.ListBotWorkflowsAsync(domain, defaults, cancellationToken);
 
-        return list.Select(w => new CozeWorkflowItemDto
-        {
-            WorkflowId = w.WorkflowId,
-            DisplayName = w.DisplayName,
-            Description = w.Description,
-            IconUrl = w.IconUrl,
-            AppId = w.AppId,
-            InputParameter = w.InputParameter
-        }).ToList();
+        using var gate = new SemaphoreSlim(WorkflowSchemaConcurrency);
+        var tasks = list.Select(w => EnrichWorkflowDtoAsync(coze, defaults, w, cancellationToken, gate));
+        var items = await Task.WhenAll(tasks);
+        return items.OrderBy(i => i.DisplayName).ToList();
     }
+
+    private async Task<CozeWorkflowItemDto> EnrichWorkflowDtoAsync(
+        CozeDomainOptions coze,
+        GlobalDefaults defaults,
+        CozeWorkflowCatalogItem workflow,
+        CancellationToken cancellationToken,
+        SemaphoreSlim gate)
+    {
+        var configured = coze.Workflows?.FirstOrDefault(w =>
+            string.Equals(w.WorkflowId, workflow.WorkflowId, StringComparison.OrdinalIgnoreCase));
+
+        await gate.WaitAsync(cancellationToken);
+        IReadOnlyList<CozeWorkflowInputSpec> merged;
+        try
+        {
+            var apiSpecs = await _cozeApi.TryGetWorkflowInputSpecsAsync(
+                coze, defaults, workflow.WorkflowId, cancellationToken);
+            merged = CozeWorkflowInputCatalog.MergeWithConfig(apiSpecs, configured?.Inputs);
+        }
+        finally
+        {
+            gate.Release();
+        }
+
+        var inputParameter = !string.IsNullOrWhiteSpace(configured?.InputParameter)
+            ? configured!.InputParameter.Trim()
+            : ResolvePrimaryTextParameter(merged, workflow.InputParameter);
+
+        var description = configured?.Description ?? workflow.Description;
+        var inputSummary = CozeWorkflowInputCatalog.BuildInputSummary(merged);
+        if (string.IsNullOrWhiteSpace(inputSummary) && !string.IsNullOrWhiteSpace(description))
+            inputSummary = description.Trim();
+
+        var inputHint = !string.IsNullOrWhiteSpace(configured?.InputHint)
+            ? configured!.InputHint!.Trim()
+            : CozeWorkflowInputCatalog.BuildPlaceholderHint(merged, null, workflow.DisplayName);
+        if (merged.Count == 0 &&
+            string.IsNullOrWhiteSpace(configured?.InputHint) &&
+            !string.IsNullOrWhiteSpace(description))
+        {
+            inputHint = $"「{workflow.DisplayName}」{description.Trim()}，输入后发送执行";
+        }
+
+        return new CozeWorkflowItemDto
+        {
+            WorkflowId = workflow.WorkflowId,
+            DisplayName = configured?.DisplayName ?? workflow.DisplayName,
+            Description = description,
+            IconUrl = workflow.IconUrl,
+            AppId = workflow.AppId ?? configured?.AppId,
+            InputParameter = inputParameter,
+            InputSummary = string.IsNullOrWhiteSpace(inputSummary) ? null : inputSummary,
+            InputHint = inputHint,
+            NeedsAttachment = CozeWorkflowInputCatalog.NeedsAttachment(merged),
+            Inputs = merged.Select(MapInputSpec).ToList()
+        };
+    }
+
+    private static string ResolvePrimaryTextParameter(
+        IReadOnlyList<CozeWorkflowInputSpec> inputs,
+        string fallback)
+    {
+        var text = inputs.FirstOrDefault(i =>
+            i.Required &&
+            (i.Type.Equals("string", StringComparison.OrdinalIgnoreCase) ||
+             i.Type.Equals("integer", StringComparison.OrdinalIgnoreCase) ||
+             i.Type.Equals("number", StringComparison.OrdinalIgnoreCase)));
+        if (text is not null) return text.Name;
+
+        var anyText = inputs.FirstOrDefault(i =>
+            i.Type.Equals("string", StringComparison.OrdinalIgnoreCase));
+        return anyText?.Name ?? fallback;
+    }
+
+    private static CozeWorkflowInputSpecDto MapInputSpec(CozeWorkflowInputSpec spec) => new()
+    {
+        Name = spec.Name,
+        Type = spec.Type,
+        Required = spec.Required,
+        Label = spec.Label,
+        Description = spec.Description,
+        Accept = spec.Accept
+    };
 
     public async Task<IReadOnlyDictionary<string, string>> BuildParametersAsync(
         string domainId,

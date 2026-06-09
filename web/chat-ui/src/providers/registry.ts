@@ -57,7 +57,6 @@ export function resolveSlashMenuItems(
   const plugin = getProviderBySlashPrefix(q)
   if (!plugin) return buildRootSlashMenu(ctx)
 
-  plugin.onSlashMenuOpen?.(ctx)
   const filter = q === plugin.slashPrefix ? '' : q.slice(plugin.slashPrefix.length).trim()
   const items = plugin.buildSlashMenu(ctx, filter)
   if (!filter) return items

@@ -25,7 +25,7 @@ export type {
   SlashActionKind,
   ProviderChatBanner,
 } from './types'
-export { cozeProvider, bindCozeWorkflowRefresh, useCozeResources, useCozeChat } from './coze/index'
+export { cozeProvider, useCozeResources, useCozeChat } from './coze/index'
 export type { CozeChatDeps } from './coze/useCozeChat'
 export { dbgptProvider } from './dbgpt'
 export { customProvider } from './custom'

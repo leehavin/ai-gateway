@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import AppHeader from './components/AppHeader.vue'
 import LoginView from './components/LoginView.vue'
 import { useAuth } from './composables/useAuth'
@@ -12,7 +12,7 @@ import { useAttachments } from './composables/useAttachments'
 import { useChat } from './composables/useChat'
 import { useChatParameters } from './composables/useChatParameters'
 import { useDomains } from './composables/useDomains'
-import { bindCozeWorkflowRefresh, useCozeResources } from './providers'
+import { useCozeResources } from './providers'
 import { useHistory } from './composables/useHistory'
 import { exportSessionJson, exportSessionMarkdown, exportSessionPdf } from './utils/exportChat'
 import { BRAND } from './constants/brand'
@@ -63,9 +63,12 @@ const {
   refresh: refreshCozeWorkflows,
 } = useCozeResources(domainId, isCozeDomain)
 
-onMounted(() => {
-  bindCozeWorkflowRefresh(refreshCozeWorkflows)
-})
+function onRefreshCozeWorkflows(reason: 'open' | 'manual' = 'open') {
+  refreshCozeWorkflows({
+    silent: reason !== 'manual',
+    force: reason === 'manual',
+  })
+}
 
 const slashMenuContext = computed(() => ({
   domains: domains.value,
@@ -471,7 +474,18 @@ async function onLogin(username: string, password: string) {
                 v-else-if="banner.kind === 'workflow-pending'"
                 class="workflow-banner workflow-banner-pending"
               >
-                <span>已选工作流：{{ banner.displayName }}，输入后发送</span>
+                <div class="workflow-banner-body">
+                  <span>{{ banner.message ?? `已选工作流：${banner.displayName}，输入后发送` }}</span>
+                  <span
+                    v-if="banner.inputSummary && banner.inputSummary !== banner.message"
+                    class="workflow-banner-detail"
+                  >
+                    {{ banner.inputSummary }}
+                  </span>
+                  <span v-else-if="banner.needsAttachment" class="workflow-banner-detail">
+                    请通过下方「附件」上传工作流所需文件
+                  </span>
+                </div>
                 <button type="button" class="workflow-banner-cancel" @click="banner.onCancel">
                   取消
                 </button>
@@ -496,7 +510,7 @@ async function onLogin(username: string, password: string) {
                 @update:domain-id="onComposerDomainChange"
                 @new-chat="onComposerNewChat"
                 @run-workflow="onRunCozeWorkflow"
-                @refresh-workflows="refreshCozeWorkflows"
+                @refresh-workflows="onRefreshCozeWorkflows"
                 @pick-files="openFilePicker"
                 @drop-files="(files) => addFiles(files)"
                 @paste-files="(files) => addFiles(files)"
@@ -745,6 +759,18 @@ async function onLogin(username: string, password: string) {
   background: #eff6ff;
   border-color: rgba(37, 99, 235, 0.25);
   color: #1d4ed8;
+}
+
+.workflow-banner-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.workflow-banner-detail {
+  color: #3b82f6;
+  opacity: 0.92;
 }
 
 .workflow-banner-cancel {

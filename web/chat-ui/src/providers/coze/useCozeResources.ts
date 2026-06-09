@@ -8,25 +8,59 @@ export function useCozeResources(domainId: Ref<string>, enabled: Ref<boolean>) {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  async function refresh() {
+  let loadGeneration = 0
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null
+  let lastFetchedAt = 0
+
+  async function refresh(options?: { silent?: boolean; force?: boolean }) {
     if (!enabled.value) {
       workflows.value = []
       error.value = null
+      loading.value = false
       return
     }
-    loading.value = true
-    error.value = null
+
+    const silent = options?.silent ?? workflows.value.length > 0
+    const force = options?.force ?? false
+    const now = Date.now()
+    if (!force && now - lastFetchedAt < 2000) return
+
+    const gen = ++loadGeneration
+    if (!silent) loading.value = true
+    if (!silent) error.value = null
+
     try {
-      workflows.value = await fetchCozeWorkflows(domainId.value)
+      const list = await fetchCozeWorkflows(domainId.value)
+      if (gen !== loadGeneration) return
+      workflows.value = list
+      error.value = null
+      lastFetchedAt = Date.now()
     } catch (e) {
-      workflows.value = []
-      error.value = e instanceof Error ? e.message : String(e)
+      if (gen !== loadGeneration) return
+      if (!silent) {
+        workflows.value = []
+        error.value = e instanceof Error ? e.message : String(e)
+      }
     } finally {
-      loading.value = false
+      if (gen === loadGeneration) loading.value = false
     }
   }
 
-  watch([domainId, enabled], () => void refresh(), { immediate: true })
+  function scheduleRefresh(options?: { silent?: boolean; force?: boolean }) {
+    if (debounceTimer) clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null
+      void refresh(options)
+    }, 300)
+  }
 
-  return { workflows, loading, error, refresh }
+  watch([domainId, enabled], () => scheduleRefresh({ force: true }), { immediate: true })
+
+  return {
+    workflows,
+    loading,
+    error,
+    refresh: (options?: { silent?: boolean; force?: boolean }) => scheduleRefresh(options),
+    refreshNow: (options?: { silent?: boolean; force?: boolean }) => refresh(options),
+  }
 }

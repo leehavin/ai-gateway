@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>1701;1702;1591;8618;8602;</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PurestAdmin.BackgroundService\PurestAdmin.BackgroundService.csproj" />
+    <ProjectReference Include="..\PurestAdmin.Core\PurestAdmin.Core.csproj" />
+    <ProjectReference Include="..\PurestAdmin.Multiplex.Contracts\PurestAdmin.Multiplex.Contracts.csproj" />
+    <ProjectReference Include="..\PurestAdmin.Multiplex\PurestAdmin.Multiplex.csproj" />
+    <ProjectReference Include="..\PurestAdmin.SqlSugar\PurestAdmin.SqlSugar.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="System.ComponentModel.DataAnnotations" />
+  </ItemGroup>
+</Project>

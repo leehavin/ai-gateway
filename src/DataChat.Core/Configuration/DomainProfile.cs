@@ -54,7 +54,7 @@ public sealed class CozeDomainOptions
     public string? WorkspaceId { get; set; }
     /// <summary>列表 API 可选：按 app_id 筛选（扣子应用内工作流）。</summary>
     public string? ListAppId { get; set; }
-    /// <summary>列表 API 可选：published / unpublished，默认 published。</summary>
+    /// <summary>列表 API 可选：published_online / all / published_draft 等，默认 published_online。</summary>
     public string? ListPublishStatus { get; set; }
     /// <summary>可选：预配置工作流；与 API 列表合并，本地项可覆盖 inputParameter 等。</summary>
     public List<CozeWorkflowOptions>? Workflows { get; set; }
@@ -67,9 +67,23 @@ public sealed class CozeWorkflowOptions
     public string? Description { get; set; }
     /// <summary>用户输入映射到 workflow parameters 的键，默认 BOT_USER_INPUT。</summary>
     public string InputParameter { get; set; } = "BOT_USER_INPUT";
+    /// <summary>给用户的简短提示，覆盖自动生成的 placeholder。</summary>
+    public string? InputHint { get; set; }
+    /// <summary>覆盖/补充 Coze API 拉取的开始节点参数说明。</summary>
+    public List<CozeWorkflowInputOptions>? Inputs { get; set; }
     public Dictionary<string, string>? DefaultParameters { get; set; }
     /// <summary>扣子应用内工作流需指定 app_id（与 bot_id 勿同时传）。</summary>
     public string? AppId { get; set; }
+}
+
+public sealed class CozeWorkflowInputOptions
+{
+    public required string Name { get; init; }
+    public string? Type { get; set; }
+    public bool? Required { get; set; }
+    public string? Label { get; set; }
+    public string? Description { get; set; }
+    public List<string>? Accept { get; set; }
 }
 
 public sealed class CustomDomainOptions

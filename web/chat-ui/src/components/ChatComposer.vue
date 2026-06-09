@@ -4,7 +4,7 @@ import { Button } from 'vue-devui/button'
 import 'vue-devui/button/style.css'
 import { DcAttachmentTrigger } from '../ui'
 import { useComposerCommands, type CommandMenuItem } from '../composables/useComposerCommands'
-import type { SlashMenuContext } from '../providers'
+import { getProviderBySlashPrefix, type SlashMenuContext } from '../providers'
 import ComposerCommandMenu from './ComposerCommandMenu.vue'
 
 const props = defineProps<{
@@ -26,7 +26,7 @@ const emit = defineEmits<{
   'new-chat': []
   'pick-files': []
   'run-workflow': [workflowId: string]
-  'refresh-workflows': []
+  'refresh-workflows': [reason?: 'open' | 'manual']
 }>()
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
@@ -59,6 +59,17 @@ watch(menuItems, () => {
   resetActiveIndex()
   clampActiveIndex()
 })
+
+watch(
+  () => {
+    const t = trigger.value
+    if (!t || t.kind !== 'slash') return false
+    return getProviderBySlashPrefix(t.query)?.id === 'coze'
+  },
+  (active, wasActive) => {
+    if (active && !wasActive) emit('refresh-workflows', 'open')
+  }
+)
 
 function syncInput(v: string) {
   inputRef.value = v
@@ -151,7 +162,7 @@ function applyItem(item: CommandMenuItem) {
     emit('run-workflow', item.workflowId)
   } else if (item.action === 'refresh-workflows') {
     syncInput(removeTriggerText())
-    emit('refresh-workflows')
+    emit('refresh-workflows', 'manual')
   } else if (item.action === 'insert-mention') {
     const t = trigger.value
     const next = t
