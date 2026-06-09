@@ -75,7 +75,6 @@ public class DataSeed : ISingletonDependency
             var agentCenterId = YitIdHelper.NextId();
             var agentProviderMenuId = YitIdHelper.NextId();
             var agentManageMenuId = YitIdHelper.NextId();
-            var agentResourceMenuId = YitIdHelper.NextId();
             var agentAccessMenuId = YitIdHelper.NextId();
             List<FunctionEntity> functions = [
                 new FunctionEntity() { Id = dashboardId, Name = "欢迎使用", Code = "dashboard",Remark = "此项主要是为了控制首页显示内容有个归属" },
@@ -153,11 +152,6 @@ public class DataSeed : ISingletonDependency
                 new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentManageMenuId, Name = "智能体编辑", Code = "agent.manage.edit" },
                 new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentManageMenuId, Name = "智能体查看", Code = "agent.manage.view" },
                 new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentManageMenuId, Name = "智能体删除", Code = "agent.manage.delete" },
-                new FunctionEntity() { Id = agentResourceMenuId, ParentId = agentCenterId, Name = "子资源管理", Code = "agent.resource" },
-                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentResourceMenuId, Name = "子资源新增", Code = "agent.resource.add" },
-                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentResourceMenuId, Name = "子资源编辑", Code = "agent.resource.edit" },
-                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentResourceMenuId, Name = "子资源查看", Code = "agent.resource.view" },
-                new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentResourceMenuId, Name = "子资源删除", Code = "agent.resource.delete" },
                 new FunctionEntity() { Id = agentAccessMenuId, ParentId = agentCenterId, Name = "智能体授权", Code = "agent.access" },
                 new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentAccessMenuId, Name = "授权查看", Code = "agent.access.view" },
                 new FunctionEntity() { Id = YitIdHelper.NextId(), ParentId = agentAccessMenuId, Name = "授权分配", Code = "agent.access.assign" },

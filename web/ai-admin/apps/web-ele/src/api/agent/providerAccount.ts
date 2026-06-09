@@ -5,7 +5,7 @@ export function getPageList(params: any) {
 }
 
 export function getList(provider?: string) {
-  return http.request('/provider-account', {
+  return http.request('/provider-account/accounts', {
     method: 'GET',
     params: { provider },
   });

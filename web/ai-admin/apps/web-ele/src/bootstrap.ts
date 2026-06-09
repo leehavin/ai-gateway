@@ -20,13 +20,14 @@ import VxeUI from 'vxe-pc-ui';
 import 'vxe-pc-ui/lib/style.css';
 import VxeUITable from 'vxe-table';
 import 'vxe-table/lib/style.css';
+import './styles/overlay-popup.css';
 import enUS from 'vxe-pc-ui/lib/language/en-US';
 import zhCN from 'vxe-pc-ui/lib/language/zh-CN';
 
 // 自定义组件
 import { Page } from '@vben/common-ui';
 import { ReVxeGrid } from './components/grid';
-import { ReModal } from "./components/modal";
+import { ReDrawer, ReModal } from './components/modal';
 
 async function bootstrap(namespace: string) {
   // 初始化组件适配器
@@ -39,10 +40,18 @@ async function bootstrap(namespace: string) {
   // 注册vxe
   app.use(VxeUI).use(VxeUITable);
 
+  // vxe-select 在 Drawer/Dialog 内：浮层挂 body，避免被 overflow 裁切
+  VxeUI.setConfig({
+    select: {
+      transfer: true,
+    },
+  });
+
   // 注册自定义的组件
   app.component('RePage', Page);
   app.component('ReVxeGrid', ReVxeGrid);
   app.component('ReModal', ReModal);
+  app.component('ReDrawer', ReDrawer);
   
   // 国际化 i18n 配置
   await setupI18n(app);

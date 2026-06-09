@@ -1,0 +1,9 @@
+/**
+ * vxe 下拉/浮层在 Element Plus Drawer、Dialog 内使用时需挂到 body 并抬高层级。
+ * vxe-modal 同源组件无此问题；el-drawer 默认 z-index ~2000+。
+ * 参考：vben getPopupContainer、vxe-table issue #2014
+ */
+.vxe-select--panel.is--transfer,
+.vxe-table--ignore-clear.vxe-select--panel {
+  z-index: 4000 !important;
+}

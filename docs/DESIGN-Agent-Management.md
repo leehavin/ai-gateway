@@ -112,6 +112,7 @@ Swagger 分组：**智能体管理** (`agent`)
 | `AgentService` | `GET/POST /v1/agent`，`GET/PUT/DELETE /v1/agent/{id}`，`GET /v1/agent?provider=&enabled=`（下拉列表） |
 | `AgentResourceService` | `GET/POST /v1/agent-resource`，`GET/PUT/DELETE /v1/agent-resource/{id}`，`GET /v1/agent-resource/by-agent/{agentId}` |
 | `AgentAccessService` | `GET /v1/agent-access/{roleId}/agents`，`POST /v1/agent-access/{roleId}/assign-agents`；`GET /v1/agent-access/{roleId}/resources`，`POST /v1/agent-access/{roleId}/assign-resources` |
+| `CozeDiscoveryService` | `GET /v1/coze-discovery/{providerAccountId}/workspaces`；`GET .../bots?space=`；`GET .../workflows?space=&bot=` |
 
 菜单权限码（`--seed`）：`agent.*`、`agent.provider.*`、`agent.manage.*`、`agent.resource.*`、`agent.access.*`
 

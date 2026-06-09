@@ -38,16 +38,6 @@ const routes: RouteRecordRaw[] = [
       },
       {
         meta: {
-          title: $t('page.agent.resource.title'),
-          authority: ['agent.resource'],
-          icon: 'mdi:file-tree-outline',
-        },
-        name: 'AgentResource',
-        path: '/agent/resource',
-        component: () => import('#/views/agent/resource/index.vue'),
-      },
-      {
-        meta: {
           title: $t('page.agent.access.title'),
           authority: ['agent.access'],
           icon: 'mdi:shield-account-outline',

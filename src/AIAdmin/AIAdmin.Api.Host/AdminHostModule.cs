@@ -3,6 +3,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using AIAdmin.Api.Host.Options;
+using AIAdmin.Application.CozeDiscovery;
 using AIAdmin.Application.Gateway;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -50,6 +51,10 @@ namespace AIAdmin.Api.Host
             context.Services.AddHttpClient(nameof(DataChatGatewayNotifier), client =>
             {
                 client.Timeout = TimeSpan.FromSeconds(2);
+            });
+            context.Services.AddHttpClient(nameof(CozeApiClient), client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(30);
             });
         }
 

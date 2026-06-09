@@ -3,12 +3,18 @@ import { ref, nextTick, watch, computed } from 'vue';
 import type { VxeFormPropTypes } from 'vxe-pc-ui';
 import { getSingle, submitData } from '#/api/agent/agent';
 import { getList as getProviderAccounts } from '#/api/agent/providerAccount';
+import {
+  getWorkspaces,
+  getBots,
+} from '#/api/agent/cozeDiscovery';
 import { $t } from '@vben/locales';
+import AgentWorkflowPanel from './AgentWorkflowPanel.vue';
 
 const emits = defineEmits<{ (e: 'reload'): void }>();
-const reModalRef = ref();
+const reDrawerRef = ref();
 const formRef = ref();
 const editId = ref<string>();
+const viewMode = ref(false);
 
 const providerOptions = [
   { label: 'Coze', value: 'coze' },
@@ -27,18 +33,14 @@ const configHints: Record<string, string> = {
   openai: '{"baseUrl":"","model":""}',
 };
 
-const listPublishStatusOptions = [
-  { label: 'published_online', value: 'published_online' },
-  { label: 'published_draft', value: 'published_draft' },
-  { label: 'all', value: 'all' },
-];
+/** Coze 拉取工作流列表固定使用已发布线上版，不对客户暴露 */
+const COZE_LIST_PUBLISH_STATUS = 'published_online';
 
 type CozeFormConfig = {
   botId: string;
   workspaceId: string;
   autoSaveHistory: boolean;
   userIdPrefix: string;
-  listPublishStatus: string;
 };
 
 const defaultCozeConfig = (): CozeFormConfig => ({
@@ -46,7 +48,6 @@ const defaultCozeConfig = (): CozeFormConfig => ({
   workspaceId: '',
   autoSaveHistory: true,
   userIdPrefix: 'user',
-  listPublishStatus: 'published_online',
 });
 
 const parseCozeConfig = (json?: string): CozeFormConfig => {
@@ -57,7 +58,6 @@ const parseCozeConfig = (json?: string): CozeFormConfig => {
       workspaceId: o.workspaceId ?? '',
       autoSaveHistory: o.autoSaveHistory !== false,
       userIdPrefix: o.userIdPrefix ?? 'user',
-      listPublishStatus: o.listPublishStatus ?? 'published_online',
     };
   } catch {
     return defaultCozeConfig();
@@ -67,13 +67,16 @@ const parseCozeConfig = (json?: string): CozeFormConfig => {
 const serializeCozeConfig = (c: CozeFormConfig) =>
   JSON.stringify({
     botId: c.botId.trim(),
-    ...(c.workspaceId.trim() ? { workspaceId: c.workspaceId.trim() } : {}),
+    workspaceId: c.workspaceId.trim(),
     autoSaveHistory: c.autoSaveHistory,
     userIdPrefix: c.userIdPrefix.trim() || 'user',
-    listPublishStatus: c.listPublishStatus || 'published_online',
+    listPublishStatus: COZE_LIST_PUBLISH_STATUS,
   });
 
 const accountOptions = ref<{ label: string; value: number }[]>([]);
+const workspaceOptions = ref<{ label: string; value: string }[]>([]);
+const botOptions = ref<{ label: string; value: string; description?: string }[]>([]);
+const discoveryLoading = ref(false);
 
 const loadAccounts = async (provider: string) => {
   if (!provider) {
@@ -85,6 +88,38 @@ const loadAccounts = async (provider: string) => {
     label: x.name,
     value: x.id,
   }));
+};
+
+const loadWorkspaces = async (accountId?: number | null) => {
+  workspaceOptions.value = [];
+  botOptions.value = [];
+  if (!accountId) return;
+  discoveryLoading.value = true;
+  try {
+    const list = (await getWorkspaces(accountId)) as any[];
+    workspaceOptions.value = list.map((x) => ({
+      label: x.name ? `${x.name} (${x.id})` : x.id,
+      value: x.id,
+    }));
+  } finally {
+    discoveryLoading.value = false;
+  }
+};
+
+const loadBots = async (accountId?: number | null, spaceId?: string) => {
+  botOptions.value = [];
+  if (!accountId || !spaceId) return;
+  discoveryLoading.value = true;
+  try {
+    const list = (await getBots(accountId, spaceId)) as any[];
+    botOptions.value = list.map((x) => ({
+      label: x.name ? `${x.name} (${x.botId})` : x.botId,
+      value: x.botId,
+      description: x.description,
+    }));
+  } finally {
+    discoveryLoading.value = false;
+  }
 };
 
 const defaultFormData = () => ({
@@ -117,7 +152,46 @@ watch(
       }
       formData.value.providerAccountId = null;
     }
+    workspaceOptions.value = [];
+    botOptions.value = [];
     loadAccounts(provider);
+  },
+);
+
+watch(
+  () => formData.value.providerAccountId,
+  async (accountId) => {
+    if (formData.value.provider !== 'coze') return;
+    if (!editId.value) {
+      formData.value.cozeConfig.workspaceId = '';
+      formData.value.cozeConfig.botId = '';
+    }
+    await loadWorkspaces(accountId);
+    if (formData.value.cozeConfig.workspaceId) {
+      await loadBots(accountId, formData.value.cozeConfig.workspaceId);
+    }
+  },
+);
+
+watch(
+  () => formData.value.cozeConfig.workspaceId,
+  async (spaceId) => {
+    if (formData.value.provider !== 'coze') return;
+    if (!editId.value) {
+      formData.value.cozeConfig.botId = '';
+    }
+    await loadBots(formData.value.providerAccountId, spaceId);
+  },
+);
+
+watch(
+  () => formData.value.cozeConfig.botId,
+  (botId) => {
+    if (!botId || formData.value.provider !== 'coze') return;
+    const bot = botOptions.value.find((x) => x.value === botId);
+    if (bot && !formData.value.displayName) {
+      formData.value.displayName = bot.label.split(' (')[0] ?? bot.label;
+    }
   },
 );
 
@@ -159,28 +233,41 @@ const baseFormItems = computed<VxeFormPropTypes.Items>(() => [
     itemRender: {
       name: '$select',
       options: accountOptions.value,
-      props: { clearable: true, placeholder: $t('agentManage.form.placeholder.providerAccount') },
+      props: {
+        clearable: true,
+        placeholder: $t('agentManage.form.placeholder.providerAccount'),
+      },
     },
   },
 ]);
 
 const cozeFormItems = computed<VxeFormPropTypes.Items>(() => [
   {
-    field: 'cozeConfig.botId',
-    title: $t('agentManage.form.coze.botId'),
+    field: 'cozeConfig.workspaceId',
+    title: $t('agentManage.form.coze.workspace'),
     span: 24,
     itemRender: {
-      name: '$input',
-      props: { placeholder: $t('agentManage.form.placeholder.coze.botId') },
+      name: '$select',
+      options: workspaceOptions.value,
+      props: {
+        clearable: true,
+        placeholder: $t('agentManage.form.placeholder.coze.workspace'),
+        loading: discoveryLoading.value,
+      },
     },
   },
   {
-    field: 'cozeConfig.workspaceId',
-    title: $t('agentManage.form.coze.workspaceId'),
+    field: 'cozeConfig.botId',
+    title: $t('agentManage.form.coze.bot'),
     span: 24,
     itemRender: {
-      name: '$input',
-      props: { placeholder: $t('agentManage.form.placeholder.coze.workspaceId') },
+      name: '$select',
+      options: botOptions.value,
+      props: {
+        clearable: true,
+        placeholder: $t('agentManage.form.placeholder.coze.bot'),
+        loading: discoveryLoading.value,
+      },
     },
   },
   {
@@ -188,12 +275,6 @@ const cozeFormItems = computed<VxeFormPropTypes.Items>(() => [
     title: $t('agentManage.form.coze.userIdPrefix'),
     span: 12,
     itemRender: { name: '$input' },
-  },
-  {
-    field: 'cozeConfig.listPublishStatus',
-    title: $t('agentManage.form.coze.listPublishStatus'),
-    span: 12,
-    itemRender: { name: '$select', options: listPublishStatusOptions },
   },
   {
     field: 'cozeConfig.autoSaveHistory',
@@ -286,8 +367,14 @@ const formRules = computed<VxeFormPropTypes.Rules>(() => {
     chatMode: [{ required: true, message: $t('agentManage.form.validate.chatMode') }],
   };
   if (formData.value.provider === 'coze') {
+    rules.providerAccountId = [
+      { required: true, message: $t('agentManage.form.validate.providerAccount') },
+    ];
+    rules['cozeConfig.workspaceId'] = [
+      { required: true, message: $t('agentManage.form.validate.coze.workspace') },
+    ];
     rules['cozeConfig.botId'] = [
-      { required: true, message: $t('agentManage.form.validate.coze.botId') },
+      { required: true, message: $t('agentManage.form.validate.coze.bot') },
     ];
   } else {
     rules.configJson = [{ required: true, message: $t('agentManage.form.validate.configJson') }];
@@ -301,6 +388,17 @@ const mapRecordToForm = (data: any) => ({
     data.provider === 'coze' ? parseCozeConfig(data.configJson) : defaultCozeConfig(),
 });
 
+const hydrateCozeDiscovery = async () => {
+  if (formData.value.provider !== 'coze' || !formData.value.providerAccountId) return;
+  await loadWorkspaces(formData.value.providerAccountId);
+  if (formData.value.cozeConfig.workspaceId) {
+    await loadBots(
+      formData.value.providerAccountId,
+      formData.value.cozeConfig.workspaceId,
+    );
+  }
+};
+
 const buildSubmitPayload = () => {
   const { cozeConfig, ...rest } = formData.value;
   const payload: Record<string, unknown> = { ...rest };
@@ -312,7 +410,8 @@ const buildSubmitPayload = () => {
 
 const showAddModal = () => {
   editId.value = undefined;
-  reModalRef.value.show($t('agentManage.add'));
+  viewMode.value = false;
+  reDrawerRef.value.show($t('agentManage.add'));
   formData.value = defaultFormData();
   loadAccounts(formData.value.provider);
   nextTick(() => formRef.value?.clearValidate());
@@ -320,24 +419,28 @@ const showAddModal = () => {
 
 const showEditModal = (record: any) => {
   editId.value = record.id;
-  reModalRef.value.show(`${$t('agentManage.edit')} -> ${record.displayName}`);
+  viewMode.value = false;
+  reDrawerRef.value.show(`${$t('agentManage.edit')} -> ${record.displayName}`);
   nextTick(() => {
     formRef.value?.clearValidate();
-    getSingle(record.id).then((data: any) => {
+    getSingle(record.id).then(async (data: any) => {
       formData.value = mapRecordToForm(data);
-      loadAccounts(data.provider);
+      await loadAccounts(data.provider);
+      await hydrateCozeDiscovery();
     });
   });
 };
 
 const showViewModal = (record: any) => {
   editId.value = record.id;
-  reModalRef.value.show(`${$t('agentManage.view')} -> ${record.displayName}`, true);
+  viewMode.value = true;
+  reDrawerRef.value.show(`${$t('agentManage.view')} -> ${record.displayName}`, true);
   nextTick(() => {
     formRef.value?.clearValidate();
-    getSingle(record.id).then((data: any) => {
+    getSingle(record.id).then(async (data: any) => {
       formData.value = mapRecordToForm(data);
-      loadAccounts(data.provider);
+      await loadAccounts(data.provider);
+      await hydrateCozeDiscovery();
     });
   });
 };
@@ -345,13 +448,13 @@ const showViewModal = (record: any) => {
 const handleSubmit = async () => {
   const validate = await formRef.value?.validate();
   if (validate) return;
-  reModalRef.value?.setSubmitting(true);
+  reDrawerRef.value?.setSubmitting(true);
   try {
     await submitData(buildSubmitPayload(), editId.value);
     emits('reload');
-    reModalRef.value.close();
+    reDrawerRef.value.close();
   } finally {
-    reModalRef.value?.setSubmitting(false);
+    reDrawerRef.value?.setSubmitting(false);
   }
 };
 
@@ -359,7 +462,7 @@ defineExpose({ showAddModal, showEditModal, showViewModal });
 </script>
 
 <template>
-  <re-modal ref="reModalRef" @submit="handleSubmit">
+  <re-drawer ref="reDrawerRef" size="760px" @submit="handleSubmit">
     <vxe-form
       ref="formRef"
       :data="formData"
@@ -369,5 +472,12 @@ defineExpose({ showAddModal, showEditModal, showViewModal });
       :titleColon="true"
       :titleAlign="`right`"
     />
-  </re-modal>
+    <AgentWorkflowPanel
+      :agent-id="editId"
+      :provider="formData.provider"
+      :provider-account-id="formData.providerAccountId"
+      :coze-config="formData.cozeConfig"
+      :readonly="viewMode"
+    />
+  </re-drawer>
 </template>

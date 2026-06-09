@@ -5,7 +5,7 @@ export function getPageList(params: any) {
 }
 
 export function getList(provider?: string, enabled = true) {
-  return http.request('/agent', {
+  return http.request('/agent/agents', {
     method: 'GET',
     params: { provider, enabled },
   });
@@ -23,3 +23,28 @@ export const getSingle = (id: string) =>
 
 export const deleteData = (id: string) =>
   http.request(`/agent/${id}`, { method: 'DELETE' });
+
+export function getAgentResources(agentId: string, resourceType?: string) {
+  return http.request(`/agent/${agentId}/resources`, {
+    method: 'GET',
+    params: { resourceType },
+  });
+}
+
+export function submitAgentResource(params: any) {
+  if (params.id) {
+    return http.request(`/agent/${params.id}/resource`, {
+      method: 'PUT',
+      data: params,
+    });
+  }
+  return http.request('/agent/resource', { method: 'POST', data: params });
+}
+
+export function deleteAgentResource(id: number) {
+  return http.request(`/agent/${id}/resource`, { method: 'DELETE' });
+}
+
+export function syncCozeWorkflows(agentId: string) {
+  return http.request(`/agent/${agentId}/sync-coze-workflows`, { method: 'POST' });
+}

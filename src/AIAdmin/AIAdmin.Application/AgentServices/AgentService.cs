@@ -1,13 +1,23 @@
+using AIAdmin.Application.AgentResourceServices.Dtos;
 using AIAdmin.Application.AgentServices.Dtos;
+using AIAdmin.Application.CozeDiscovery;
 using AIAdmin.Application.Gateway;
+using System.Text.Json;
 
 namespace AIAdmin.Application.AgentServices;
 
 [ApiExplorerSettings(GroupName = ApiExplorerGroupConst.AGENT)]
-public class AgentService(ISqlSugarClient db, IDataChatGatewayNotifier gatewayNotifier) : ApplicationService
+public class AgentService(
+    ISqlSugarClient db,
+    Repository<AgentResourceEntity> resourceRepository,
+    IDataChatGatewayNotifier gatewayNotifier,
+    CozeDiscoveryService cozeDiscovery) : ApplicationService
 {
     private static readonly HashSet<string> AllowedProviders =
         new(StringComparer.OrdinalIgnoreCase) { "coze", "dbgpt", "openai" };
+
+    private static readonly HashSet<string> AllowedResourceTypes =
+        new(StringComparer.OrdinalIgnoreCase) { "workflow", "tool", "skill" };
 
     public async Task<PagedList<AgentOutput>> GetPagedListAsync(GetPagedListInput input)
     {
@@ -132,6 +142,167 @@ public class AgentService(ISqlSugarClient db, IDataChatGatewayNotifier gatewayNo
         _ = await db.Deleteable<RoleAgentEntity>().Where(x => x.AgentId == id).ExecuteCommandAsync();
         _ = await db.Deleteable(entity).ExecuteCommandAsync();
         gatewayNotifier.NotifyReloadDomains();
+    }
+
+    public async Task<List<AgentResourceOutput>> GetResourcesAsync(string agentId, string? resourceType = null)
+    {
+        await EnsureAgentExists(agentId);
+        var list = await db.Queryable<AgentResourceEntity>()
+            .Where(x => x.AgentId == agentId)
+            .WhereIF(!resourceType.IsNullOrEmpty(), x => x.ResourceType == resourceType!.Trim())
+            .OrderBy(x => x.SortOrder)
+            .ToListAsync();
+        var agent = await db.Queryable<AgentEntity>().FirstAsync(x => x.Id == agentId);
+        return list.Select(r => MapResource(r, agent?.DisplayName)).ToList();
+    }
+
+    public async Task<long> AddResourceAsync(AddAgentResourceInput input)
+    {
+        await EnsureAgentExists(input.AgentId);
+        ValidateResource(input.ResourceType, input.ExternalId);
+        if (await db.Queryable<AgentResourceEntity>().AnyAsync(x =>
+                x.AgentId == input.AgentId.Trim() &&
+                x.ResourceType == input.ResourceType.Trim() &&
+                x.ExternalId == input.ExternalId.Trim()))
+            throw PersistdValidateException.Message("同智能体下该资源已存在");
+
+        var entity = input.Adapt<AgentResourceEntity>();
+        entity.AgentId = input.AgentId.Trim();
+        entity.ResourceType = input.ResourceType.Trim();
+        entity.ExternalId = input.ExternalId.Trim();
+        var id = await resourceRepository.InsertReturnSnowflakeIdAsync(entity);
+        gatewayNotifier.NotifyReloadDomains();
+        return id;
+    }
+
+    public async Task PutResourceAsync(long id, AddAgentResourceInput input)
+    {
+        await EnsureAgentExists(input.AgentId);
+        ValidateResource(input.ResourceType, input.ExternalId);
+        var entity = await resourceRepository.GetByIdAsync(id)
+            ?? throw PersistdValidateException.Message(ErrorTipsEnum.NoResult);
+
+        var updated = input.Adapt(entity);
+        updated.Id = id;
+        _ = await resourceRepository.UpdateAsync(updated);
+        gatewayNotifier.NotifyReloadDomains();
+    }
+
+    public async Task DeleteResourceAsync(long id)
+    {
+        var entity = await resourceRepository.GetByIdAsync(id)
+            ?? throw PersistdValidateException.Message(ErrorTipsEnum.NoResult);
+        _ = await db.Deleteable<RoleResourceEntity>().Where(x => x.ResourceRowId == id).ExecuteCommandAsync();
+        await resourceRepository.DeleteAsync(entity);
+        gatewayNotifier.NotifyReloadDomains();
+    }
+
+    public async Task<int> SyncCozeWorkflowsAsync(string agentId)
+    {
+        var agent = await db.Queryable<AgentEntity>().FirstAsync(x => x.Id == agentId)
+            ?? throw PersistdValidateException.Message(ErrorTipsEnum.NoResult);
+
+        if (!agent.Provider.Equals("coze", StringComparison.OrdinalIgnoreCase))
+            throw PersistdValidateException.Message("仅 Coze 智能体支持同步工作流");
+
+        if (!agent.ProviderAccountId.HasValue)
+            throw PersistdValidateException.Message("请先绑定连接器");
+
+        var cfg = ParseCozeConfig(agent.ConfigJson);
+        if (cfg.WorkspaceId.IsNullOrWhiteSpace())
+            throw PersistdValidateException.Message("请先配置扣子空间");
+
+        var remote = await cozeDiscovery.GetWorkflowsAsync(
+            agent.ProviderAccountId.Value,
+            cfg.WorkspaceId,
+            cfg.BotId,
+            cfg.ListPublishStatus);
+
+        var existing = await db.Queryable<AgentResourceEntity>()
+            .Where(x => x.AgentId == agentId && x.ResourceType == "workflow")
+            .Select(x => x.ExternalId)
+            .ToListAsync();
+        var existingSet = new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
+
+        var added = 0;
+        var sort = (await db.Queryable<AgentResourceEntity>()
+            .Where(x => x.AgentId == agentId)
+            .MaxAsync(x => (int?)x.SortOrder)) ?? 0;
+
+        foreach (var wf in remote)
+        {
+            if (existingSet.Contains(wf.WorkflowId)) continue;
+
+            sort++;
+            _ = await resourceRepository.InsertReturnSnowflakeIdAsync(new AgentResourceEntity
+            {
+                AgentId = agentId,
+                ResourceType = "workflow",
+                ExternalId = wf.WorkflowId,
+                DisplayName = wf.Name,
+                Description = wf.Description,
+                ConfigJson = """{"inputParameter":"BOT_USER_INPUT","inputHint":""}""",
+                SortOrder = sort,
+                Enabled = true
+            });
+            existingSet.Add(wf.WorkflowId);
+            added++;
+        }
+
+        if (added > 0)
+            gatewayNotifier.NotifyReloadDomains();
+
+        return added;
+    }
+
+    private async Task EnsureAgentExists(string agentId)
+    {
+        if (!await db.Queryable<AgentEntity>().AnyAsync(x => x.Id == agentId.Trim()))
+            throw PersistdValidateException.Message("智能体不存在");
+    }
+
+    private static void ValidateResource(string resourceType, string externalId)
+    {
+        if (!AllowedResourceTypes.Contains(resourceType))
+            throw PersistdValidateException.Message("不支持的 resourceType");
+        if (externalId.IsNullOrWhiteSpace())
+            throw PersistdValidateException.Message("externalId 不能为空");
+    }
+
+    private static AgentResourceOutput MapResource(AgentResourceEntity e, string? agentDisplayName) => new()
+    {
+        Id = e.Id,
+        AgentId = e.AgentId,
+        AgentDisplayName = agentDisplayName,
+        ResourceType = e.ResourceType,
+        ExternalId = e.ExternalId,
+        DisplayName = e.DisplayName,
+        Description = e.Description,
+        ConfigJson = e.ConfigJson,
+        SortOrder = e.SortOrder,
+        Enabled = e.Enabled,
+        Remark = e.Remark,
+        CreateTime = e.CreateTime
+    };
+
+    private static CozeAgentConfig ParseCozeConfig(string? configJson)
+    {
+        if (configJson.IsNullOrWhiteSpace()) return new CozeAgentConfig();
+        try
+        {
+            return JsonSerializer.Deserialize<CozeAgentConfig>(configJson) ?? new CozeAgentConfig();
+        }
+        catch
+        {
+            return new CozeAgentConfig();
+        }
+    }
+
+    private sealed class CozeAgentConfig
+    {
+        public string? BotId { get; set; }
+        public string? WorkspaceId { get; set; }
+        public string? ListPublishStatus { get; set; }
     }
 
     private static void ValidateAgent(string id, string provider, string configJson)

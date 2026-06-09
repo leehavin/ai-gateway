@@ -26,10 +26,9 @@
     "model": "模型",
     "configJson": "平台配置 JSON",
     "coze": {
-      "botId": "Bot ID",
-      "workspaceId": "空间 ID",
+      "workspace": "扣子空间",
+      "bot": "扣子智能体",
       "userIdPrefix": "用户 ID 前缀",
-      "listPublishStatus": "工作流发布状态",
       "autoSaveHistory": "自动保存历史"
     },
     "placeholderText": "输入提示",
@@ -44,8 +43,8 @@
       "providerAccount": "可选，绑定连接器账号",
       "configJson": "各平台差异配置，见占位示例",
       "coze": {
-        "botId": "Coze 开发页 URL 中 bot 后的数字",
-        "workspaceId": "可选，空间 URL 中 space 后的数字，用于拉取工作流列表"
+        "workspace": "选择连接器后从 Coze API 加载",
+        "bot": "选择空间后加载已发布智能体"
       }
     },
     "validate": {
@@ -54,9 +53,27 @@
       "provider": "请选择类型",
       "chatMode": "请输入对话模式",
       "configJson": "请输入 configJson",
+      "providerAccount": "请选择连接器",
       "coze": {
-        "botId": "请输入 Bot ID"
+        "workspace": "请选择扣子空间",
+        "bot": "请选择扣子智能体"
       }
+    }
+  },
+  "workflows": {
+    "title": "关联工作流（可选）",
+    "hint": "不配置时 Gateway 运行时从 Coze 拉取；配置后可用于细粒度授权",
+    "sync": "从 Coze 同步",
+    "add": "添加",
+    "addPlaceholder": "选择要添加的工作流",
+    "syncSuccess": "已同步 {count} 个工作流",
+    "syncEmpty": "没有新的工作流可同步",
+    "addSuccess": "工作流已添加",
+    "empty": "暂无本地工作流，可点击「从 Coze 同步」",
+    "columns": {
+      "name": "名称",
+      "id": "工作流 ID",
+      "enabled": "状态"
     }
   }
 }

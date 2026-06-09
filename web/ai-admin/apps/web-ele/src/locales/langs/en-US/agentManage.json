@@ -26,10 +26,9 @@
     "model": "Model",
     "configJson": "Config JSON",
     "coze": {
-      "botId": "Bot ID",
-      "workspaceId": "Workspace ID",
+      "workspace": "Coze Workspace",
+      "bot": "Coze Bot",
       "userIdPrefix": "User ID Prefix",
-      "listPublishStatus": "Workflow Publish Status",
       "autoSaveHistory": "Auto Save History"
     },
     "placeholderText": "Input Placeholder",
@@ -44,8 +43,8 @@
       "providerAccount": "Optional connector account",
       "configJson": "Provider-specific JSON",
       "coze": {
-        "botId": "Numeric bot id from Coze studio URL",
-        "workspaceId": "Optional workspace id for workflow list API"
+        "workspace": "Loaded from Coze API after selecting connector",
+        "bot": "Published bots in selected workspace"
       }
     },
     "validate": {
@@ -54,9 +53,27 @@
       "provider": "Select provider",
       "chatMode": "Enter chat mode",
       "configJson": "Enter config JSON",
+      "providerAccount": "Select connector",
       "coze": {
-        "botId": "Enter Bot ID"
+        "workspace": "Select workspace",
+        "bot": "Select bot"
       }
+    }
+  },
+  "workflows": {
+    "title": "Workflows (optional)",
+    "hint": "Leave empty to fetch from Coze at runtime; configure for fine-grained access control",
+    "sync": "Sync from Coze",
+    "add": "Add",
+    "addPlaceholder": "Select workflow to add",
+    "syncSuccess": "Synced {count} workflow(s)",
+    "syncEmpty": "No new workflows to sync",
+    "addSuccess": "Workflow added",
+    "empty": "No local workflows. Click Sync from Coze.",
+    "columns": {
+      "name": "Name",
+      "id": "Workflow ID",
+      "enabled": "Status"
     }
   }
 }

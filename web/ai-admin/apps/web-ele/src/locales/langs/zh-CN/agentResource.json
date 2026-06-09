@@ -20,6 +20,7 @@
     "agent": "智能体",
     "resourceType": "类型",
     "externalId": "外部 ID",
+    "cozeWorkflow": "Coze 工作流",
     "displayName": "显示名",
     "description": "描述",
     "configJson": "配置 JSON",
@@ -28,12 +29,14 @@
     "remark": "备注",
     "placeholder": {
       "agent": "选择智能体",
-      "externalId": "如 Coze workflow_id"
+      "externalId": "如 Coze workflow_id",
+      "cozeWorkflow": "从 Coze API 选择工作流"
     },
     "validate": {
       "agent": "请选择智能体",
       "resourceType": "请选择类型",
-      "externalId": "请输入外部 ID"
+      "externalId": "请输入外部 ID",
+      "cozeWorkflow": "请选择工作流"
     }
   }
 }

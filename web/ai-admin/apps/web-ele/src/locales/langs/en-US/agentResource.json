@@ -20,6 +20,7 @@
     "agent": "Agent",
     "resourceType": "Type",
     "externalId": "External ID",
+    "cozeWorkflow": "Coze Workflow",
     "displayName": "Display Name",
     "description": "Description",
     "configJson": "Config JSON",
@@ -28,12 +29,14 @@
     "remark": "Remark",
     "placeholder": {
       "agent": "Select agent",
-      "externalId": "e.g. Coze workflow_id"
+      "externalId": "e.g. Coze workflow_id",
+      "cozeWorkflow": "Select from Coze API"
     },
     "validate": {
       "agent": "Select agent",
       "resourceType": "Select type",
-      "externalId": "Enter external ID"
+      "externalId": "Enter external ID",
+      "cozeWorkflow": "Select workflow"
     }
   }
 }

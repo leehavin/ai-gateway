@@ -2,6 +2,7 @@ import { $t } from '@vben/locales';
 import { VxeUI } from 'vxe-pc-ui';
 
 export { default as ReModal } from './src/ReModal.vue';
+export { default as ReDrawer } from './src/ReDrawer.vue';
 export const deleteConfirm = async () => {
   const type = await VxeUI.modal.confirm(
     $t('common.tooltip.delete'),
