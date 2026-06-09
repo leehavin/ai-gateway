@@ -1,44 +1,69 @@
 # =============================================================================
-# DataChat / AIHUB — GitHub 上传忽略规则
-# .NET 8 Gateway + WinForms + Vue 3 (web/chat-ui)
+# ai-gateway — 统一 Git 忽略规则
+#
+# src/  .NET 后端（DataChat Gateway + AIAdmin API）
+# web/  前端（chat-ui / ai-admin vben / ai-admin-uni）
 # =============================================================================
 
-# --- 密钥与本地配置（切勿提交到 GitHub）---
-**/appsettings.*.local.json
-**/appsettings.Local.json
+# -----------------------------------------------------------------------------
+# 密钥、本地配置、用户数据（切勿提交）
+# -----------------------------------------------------------------------------
 **/appsettings.Development.json
 **/appsettings.Staging.json
+**/appsettings.*.local.json
+**/appsettings.Local.json
+!**/appsettings.*.local.json.example
+!**/appsettings.*.example.json
+
 **/secrets.json
 **/domains.local.json
 **/*.key
+**/*.pfx
+**/*.p12
+**/*.pem
+**/*.crt
+**/*.cer
+
 .env
 .env.local
 .env.*.local
 !.env.example
 !.env.*.example
 
-# Gateway 上传目录与用户数据
+# Gateway / Admin 运行时目录
 **/uploads/
+**/Ip2region/
+
+# 本地 SQLite / 数据库文件
 **/*.db
 **/*.db-shm
 **/*.db-wal
+**/*.mdf
+**/*.ldf
+**/*.ndf
 **/chat.db
 
-# --- .NET / Visual Studio ---
+# -----------------------------------------------------------------------------
+# .NET / Visual Studio / Rider
+# -----------------------------------------------------------------------------
 [Bb]in/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
 [Pp]ublish/
 [Rr]elease/
-[Dd]ebug/
 [Rr]eleases/
+[Dd]ebug/
+[Dd]ebugPublic/
 x64/
 x86/
+[Ww][Ii][Nn]32/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 bld/
 [Bb]uild/
+[Oo]ut/
+
 *.dll
 *.exe
 *.pdb
@@ -62,16 +87,28 @@ bld/
 *.tlog
 *.vspscc
 *.vssscc
-.builds
 *.pidb
 *.svclog
 *.scc
+*.binlog
 
-# Visual Studio / Rider
+.builds
+artifacts/
+project.lock.json
+project.fragment.lock.json
+ScaffoldingReadMe.txt
+FodyWeavers.xsd
+
+# NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+# VS / Rider / ReSharper
 .vs/
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json.example
 .idea/
 *.rsuser
 *.suo
@@ -80,17 +117,14 @@ bld/
 *.sln.docstates
 *.userprefs
 *.DotSettings.user
+_ReSharper*/
+*.[Rr]e[Ss]harper
 
-# NuGet
-*.nupkg
-*.snupkg
-**/[Pp]ackages/*
-!**/[Pp]ackages/build/
-project.lock.json
-project.fragment.lock.json
-artifacts/
+# 发布配置中的本地覆盖（可能含密码）
+*.pubxml.user
+*.publishproj.user
 
-# .NET test / coverage
+# 测试与覆盖率
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
 *.VisualState.xml
@@ -101,30 +135,85 @@ coverage*.xml
 coverage*.info
 *.coverage
 *.coveragexml
+OpenCover/
 
-# --- Node.js / Vue (web/chat-ui 等) ---
+# -----------------------------------------------------------------------------
+# Node.js / pnpm / Vite / Vue（web/chat-ui、web/ai-admin）
+# -----------------------------------------------------------------------------
 node_modules/
 dist/
 dist-ssr/
-*.local
+dev-dist/
+*.tsbuildinfo
+
 .npm
 .eslintcache
 .stylelintcache
-.yarn/cache
-.yarn/unplugged
-.yarn/build-state.yml
-.yarn/install-state.gz
-.pnp.*
-pnpm-debug.log*
+.pnpm-debug.log*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 lerna-debug.log*
 
-# Vite / TypeScript
-*.tsbuildinfo
+# 仅使用 pnpm 时，忽略其他包管理器锁文件
+package-lock.json
+yarn.lock
 
-# --- 操作系统 ---
+# Vite / VitePress 缓存
+**/.vite/
+**/.vitepress/cache
+.cache/
+
+# Turborepo（web/ai-admin monorepo）
+.turbo/
+
+# Nitro mock（web/ai-admin/apps/backend-mock）
+.nitro/
+.output/
+**/backend-mock/data/
+
+# vben 构建产物
+dist.zip
+dist.tar
+dist.war
+*-dist.zip
+*-dist.tar
+*-dist.war
+
+# Vite 自动生成的临时配置
+vite.config.mts.*
+vite.config.mjs.*
+vite.config.js.*
+vite.config.ts.*
+
+# -----------------------------------------------------------------------------
+# uni-app（web/ai-admin-uni）
+# -----------------------------------------------------------------------------
+unpackage/
+.hbuilderx/
+
+# -----------------------------------------------------------------------------
+# 编辑器与 IDE
+# -----------------------------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+!.vscode/launch.json.example
+
+*.swp
+*~
+*.bak
+*.orig
+.history/
+.VSCodeCounter/
+
+# Cursor 本地会话（非源码）
+.cursor/
+
+# -----------------------------------------------------------------------------
+# 操作系统
+# -----------------------------------------------------------------------------
 Thumbs.db
 Thumbs.db:encryptable
 ehthumbs.db
@@ -136,6 +225,7 @@ $RECYCLE.BIN/
 *.msix
 *.msm
 *.msp
+
 .DS_Store
 .AppleDouble
 .LSOverride
@@ -143,24 +233,11 @@ $RECYCLE.BIN/
 .Spotlight-V100
 .Trashes
 
-# --- 编辑器 / 工具 ---
-*.swp
-*~
-*.bak
-*.orig
-.history/
-
-# Cursor / Agent（本地会话，非源码）
-.cursor/
-
-# --- 杂项 ---
+# -----------------------------------------------------------------------------
+# 压缩包与临时导出
+# -----------------------------------------------------------------------------
 *.zip
 *.7z
 *.rar
 *.tar
 *.gz
-*.pfx
-*.p12
-*.pem
-*.crt
-*.cer

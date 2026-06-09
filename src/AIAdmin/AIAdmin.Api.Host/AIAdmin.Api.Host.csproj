@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <NoWarn>1701;1702;1591;8618;8601;</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AIAdmin.Application\AIAdmin.Application.csproj" />
+    <ProjectReference Include="..\AIAdmin.Core\AIAdmin.Core.csproj" />
+    <ProjectReference Include="..\AIAdmin.Multiplex.Contracts\AIAdmin.Multiplex.Contracts.csproj" />
+    <ProjectReference Include="..\AIAdmin.Multiplex\AIAdmin.Multiplex.csproj" />
+    <ProjectReference Include="..\AIAdmin.Workflow\AIAdmin.Workflow.csproj" />
+  </ItemGroup>
+
+</Project>

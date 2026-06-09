@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>1701;1702;1591;8618;8602;</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AIAdmin.Core\AIAdmin.Core.csproj" />
+    <ProjectReference Include="..\AIAdmin.Multiplex\AIAdmin.Multiplex.csproj" />
+    <ProjectReference Include="..\AIAdmin.SqlSugar\AIAdmin.SqlSugar.csproj" />
+    <ProjectReference Include="..\AIAdmin.Workflow\AIAdmin.Workflow.csproj" />
+  </ItemGroup>
+
+</Project>

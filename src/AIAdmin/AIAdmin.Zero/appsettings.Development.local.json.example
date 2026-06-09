@@ -1,0 +1,6 @@
+{
+  "ConnectionOptions": {
+    "DbType": "SqlServer",
+    "ConnectionString": "Server=192.168.106.207,1433;Database=AIAdmin;User Id=sa;Password=YOUR_PASSWORD;TrustServerCertificate=True;Encrypt=False;"
+  }
+}

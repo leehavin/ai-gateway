@@ -1,0 +1,60 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/ai-admin/">
+    <Project Path="src/AIAdmin/AIAdmin.Api.Host/AIAdmin.Api.Host.csproj" />
+    <Project Path="src/AIAdmin/AIAdmin.Application/AIAdmin.Application.csproj" />
+    <Project Path="src/AIAdmin/AIAdmin.BackgroundService/AIAdmin.BackgroundService.csproj" />
+    <Project Path="src/AIAdmin/AIAdmin.Core/AIAdmin.Core.csproj" />
+    <Project Path="src/AIAdmin/AIAdmin.Multiplex.Contracts/AIAdmin.Multiplex.Contracts.csproj" />
+    <Project Path="src/AIAdmin/AIAdmin.Multiplex/AIAdmin.Multiplex.csproj" />
+    <Project Path="src/AIAdmin/AIAdmin.SqlSugar/AIAdmin.SqlSugar.csproj" />
+    <Project Path="src/AIAdmin/AIAdmin.Workflow/AIAdmin.Workflow.csproj" />
+    <Project Path="src/AIAdmin/AIAdmin.Zero/AIAdmin.Zero.csproj" />
+  </Folder>
+  <Folder Name="/src/data-chat/">
+    <Project Path="src/DataChat/DataChat.Core/DataChat.Core.csproj" />
+    <Project Path="src/DataChat/DataChat.Gateway/DataChat.Gateway.csproj" />
+    <Project Path="src/DataChat/DataChat.Infrastructure/DataChat.Infrastructure.csproj" />
+    <Project Path="src/DataChat/DataChat.Providers/DataChat.Providers.csproj" />
+    <Project Path="src/DataChat/DataChat.WinForms/DataChat.WinForms.csproj" />
+  </Folder>
+
+  <Folder Name="/web/">
+
+    <File Path="web/chat-ui/README.md" />
+
+  </Folder>
+  <Folder Name="/db/admin/">
+    <File Path="db/admin/admin-sqlserver.sql" />
+    <File Path="db/admin/seed-admin-user.sql" />
+  </Folder>
+  <Folder Name="/db/chat/">
+    <File Path="db/chat/01-schema.sql" />
+    <File Path="db/chat/02-seed-domains.sql" />
+    <File Path="db/chat/03-add-user-id.sql" />
+  </Folder>
+
+  <Folder Name="/docs/">
+
+    <File Path="docs/API-Gateway.md" />
+
+    <File Path="docs/DB-GPT-API-Coverage.md" />
+
+    <File Path="docs/Domains-Database.md" />
+
+    <File Path="docs/DESIGN-WinForms-DataChat.md" />
+
+  </Folder>
+
+  <Folder Name="/db/" />
+
+  <Folder Name="/Solution Items/">
+
+    <File Path="README.md" />
+
+    <File Path=".gitignore" />
+
+  </Folder>
+
+</Solution>
+
