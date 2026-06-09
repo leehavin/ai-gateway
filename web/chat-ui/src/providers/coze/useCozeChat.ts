@@ -9,7 +9,7 @@ import type {
 } from '../../types'
 import type { ProviderChatBanner } from '../types'
 import { normalizeOutgoingMessage } from '../../utils/composerTokens'
-import { workflowPendingMessage, workflowPlaceholderHint } from './workflowInputHint'
+import { workflowPlaceholderHint, workflowToastMessage } from './workflowInputHint'
 
 function uid() {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -62,10 +62,7 @@ export function useCozeChat(deps: CozeChatDeps) {
       return [
         {
           kind: 'workflow-pending',
-          displayName: pendingWorkflow.value.displayName,
-          message: workflowPendingMessage(pendingWorkflow.value),
-          inputSummary: pendingWorkflow.value.inputSummary,
-          needsAttachment: pendingWorkflow.value.needsAttachment,
+          workflow: pendingWorkflow.value,
           onCancel: clearState,
         },
       ]
@@ -173,10 +170,7 @@ export function useCozeChat(deps: CozeChatDeps) {
       return
     }
     pendingWorkflow.value = workflow
-    const hint = workflow.inputSummary
-      ? `已选择「${workflow.displayName}」：${workflow.inputSummary}`
-      : `已选择「${workflow.displayName}」，输入内容后发送执行`
-    deps.showToast(hint)
+    deps.showToast(workflowToastMessage(workflow))
     deps.composerFocusNonce.value++
   }
 

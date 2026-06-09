@@ -6,6 +6,7 @@ import { useAuth } from './composables/useAuth'
 import AssistantMessage from './components/AssistantMessage.vue'
 import ChatParamsPanel from './components/ChatParamsPanel.vue'
 import ChatComposer from './components/ChatComposer.vue'
+import WorkflowPendingCard from './components/WorkflowPendingCard.vue'
 import HistoryPanel from './components/HistoryPanel.vue'
 import MessageActions from './components/MessageActions.vue'
 import { useAttachments } from './composables/useAttachments'
@@ -470,26 +471,11 @@ async function onLogin(username: string, password: string) {
                   取消
                 </button>
               </div>
-              <div
+              <WorkflowPendingCard
                 v-else-if="banner.kind === 'workflow-pending'"
-                class="workflow-banner workflow-banner-pending"
-              >
-                <div class="workflow-banner-body">
-                  <span>{{ banner.message ?? `已选工作流：${banner.displayName}，输入后发送` }}</span>
-                  <span
-                    v-if="banner.inputSummary && banner.inputSummary !== banner.message"
-                    class="workflow-banner-detail"
-                  >
-                    {{ banner.inputSummary }}
-                  </span>
-                  <span v-else-if="banner.needsAttachment" class="workflow-banner-detail">
-                    请通过下方「附件」上传工作流所需文件
-                  </span>
-                </div>
-                <button type="button" class="workflow-banner-cancel" @click="banner.onCancel">
-                  取消
-                </button>
-              </div>
+                :workflow="banner.workflow"
+                @cancel="banner.onCancel"
+              />
             </template>
             <div v-if="isEditing" class="edit-banner">
               <span>正在编辑消息，发送后将从此处重新生成</span>
@@ -753,24 +739,6 @@ async function onLogin(username: string, password: string) {
   border: 1px solid rgba(234, 88, 12, 0.25);
   font-size: 12px;
   color: #c2410c;
-}
-
-.workflow-banner-pending {
-  background: #eff6ff;
-  border-color: rgba(37, 99, 235, 0.25);
-  color: #1d4ed8;
-}
-
-.workflow-banner-body {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.workflow-banner-detail {
-  color: #3b82f6;
-  opacity: 0.92;
 }
 
 .workflow-banner-cancel {
