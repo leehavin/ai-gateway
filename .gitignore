@@ -104,6 +104,9 @@ FodyWeavers.xsd
 *.snupkg
 **/[Pp]ackages/*
 !**/[Pp]ackages/build/
+# vue-vben-admin monorepo shared packages (not NuGet)
+!web/ai-admin/packages/
+!web/ai-admin/packages/**
 *.nuget.props
 *.nuget.targets
 
