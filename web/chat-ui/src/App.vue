@@ -5,7 +5,6 @@ import AppHeader from './components/AppHeader.vue'
 import LoginView from './components/LoginView.vue'
 import { useAuth } from './composables/useAuth'
 import AssistantMessage from './components/AssistantMessage.vue'
-import ChatParamsPanel from './components/ChatParamsPanel.vue'
 import ChatComposer from './components/ChatComposer.vue'
 import WorkflowPendingCard from './components/WorkflowPendingCard.vue'
 import HistoryPanel from './components/HistoryPanel.vue'
@@ -25,7 +24,6 @@ import {
   stripAttachmentNote,
 } from './utils/composerTokens'
 import type { ChatMessage } from './types'
-import type { ChatGenerationParameters } from './types/chatParams'
 import {
   DcChatFooter,
   DcChatLayout,
@@ -98,14 +96,7 @@ function bindDropZone(el: unknown) {
   attachments.dropZoneEl.value = el instanceof HTMLElement ? el : null
 }
 
-const {
-  params: chatParams,
-  panelOpen: paramsPanelOpen,
-  applyParams: applyChatParams,
-  resetDefaults: resetChatParams,
-  togglePanel: toggleParamsPanel,
-  closePanel: closeParamsPanel,
-} = useChatParameters(domainId)
+const { params: chatParams } = useChatParameters(domainId)
 
 const {
   session,
@@ -247,12 +238,6 @@ function onExportPdf() {
   }
 }
 
-function onApplyChatParams(v: ChatGenerationParameters) {
-  applyChatParams(v)
-  closeParamsPanel()
-  showToast('生成参数已保存')
-}
-
 async function loadWorkspace() {
   try {
     await refresh()
@@ -339,8 +324,6 @@ async function onLogout() {
     <div :ref="bindDropZone" class="chat-stage">
       <AppHeader
         :title="headerTitle"
-        :domains="domains"
-        :domain-id="domainId"
         :active-provider="activeDomain?.provider"
         :loading="loading"
         :error="error"
@@ -348,13 +331,10 @@ async function onLogout() {
         :user-name="displayName"
         :show-menu="isNarrow || !asideExpanded"
         :can-export="canExportSession"
-        :params-open="paramsPanelOpen"
-        @update:domain-id="(v) => (domainId = v)"
         @refresh="loadWorkspace"
         @logout="onLogout"
         @toggle-menu="toggleAside"
         @toggle-history="toggleAside"
-        @open-params="toggleParamsPanel"
         @export-markdown="onExportMarkdown"
         @export-json="onExportJson"
         @export-pdf="onExportPdf"
@@ -548,14 +528,6 @@ async function onLogout() {
         </DcChatFooter>
       </DcChatLayout>
     </div>
-
-    <ChatParamsPanel
-      :open="paramsPanelOpen"
-      :params="chatParams"
-      @close="closeParamsPanel"
-      @reset="resetChatParams"
-      @apply="onApplyChatParams"
-    />
 
     <Transition name="toast-fade">
       <div v-if="toast" class="app-toast" role="status">{{ toast }}</div>

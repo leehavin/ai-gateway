@@ -29,9 +29,8 @@ const workflowOptions = ref<{ label: string; value: string }[]>([]);
 const selectedWorkflowId = ref('');
 const adding = ref(false);
 
-const showPanel = computed(
-  () => !!props.agentId && props.provider === 'coze',
-);
+const showPanel = computed(() => props.provider === 'coze');
+const canManage = computed(() => !!props.agentId);
 
 const loadResources = async () => {
   if (!props.agentId) {
@@ -49,7 +48,7 @@ const loadResources = async () => {
 const loadWorkflowOptions = async () => {
   workflowOptions.value = [];
   selectedWorkflowId.value = '';
-  if (!props.providerAccountId || !props.cozeConfig?.workspaceId) return;
+  if (!canManage.value || !props.providerAccountId || !props.cozeConfig?.workspaceId) return;
   try {
     const list = (await getWorkflows(
       props.providerAccountId,
@@ -64,8 +63,9 @@ const loadWorkflowOptions = async () => {
         label: `${x.name} (${x.workflowId})`,
         value: x.workflowId,
       }));
-  } catch {
+  } catch (error: any) {
     workflowOptions.value = [];
+    ElMessage.error(error?.message ?? $t('agentManage.discovery.loadFailed'));
   }
 };
 
@@ -76,7 +76,13 @@ watch(
 );
 
 watch(
-  () => [props.providerAccountId, props.cozeConfig?.workspaceId, resources.value.length],
+  () => [
+    props.agentId,
+    props.providerAccountId,
+    props.cozeConfig?.workspaceId,
+    props.cozeConfig?.botId,
+    resources.value.length,
+  ],
   () => loadWorkflowOptions(),
 );
 
@@ -134,54 +140,67 @@ const handleDelete = async (row: any) => {
 </script>
 
 <template>
-  <div v-if="showPanel" class="mt-4 border-t pt-4">
-    <div class="mb-2 flex items-center justify-between">
+  <div v-if="showPanel" class="agent-workflow-panel mt-4 border-t pt-4">
+    <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
       <span class="font-medium">{{ $t('agentManage.workflows.title') }}</span>
       <span class="text-xs text-gray-500">{{ $t('agentManage.workflows.hint') }}</span>
     </div>
-    <div v-if="!readonly" class="mb-3 flex flex-wrap items-center gap-2">
-      <vxe-button status="primary" :loading="syncing" @click="handleSync">
-        {{ $t('agentManage.workflows.sync') }}
-      </vxe-button>
-      <vxe-select
-        v-if="workflowOptions.length"
-        v-model="selectedWorkflowId"
-        :options="workflowOptions"
-        :placeholder="$t('agentManage.workflows.addPlaceholder')"
-        style="width: 280px"
-        clearable
-        transfer
-      />
-      <vxe-button
-        v-if="workflowOptions.length"
-        :disabled="!selectedWorkflowId"
-        :loading="adding"
-        @click="handleAdd"
-      >
-        {{ $t('agentManage.workflows.add') }}
-      </vxe-button>
-    </div>
-    <vxe-table :data="resources" :loading="loading" :size="`mini`" max-height="320">
-      <vxe-column field="displayName" :title="$t('agentManage.workflows.columns.name')" min-width="140" />
-      <vxe-column field="externalId" :title="$t('agentManage.workflows.columns.id')" min-width="160" />
-      <vxe-column field="enabled" :title="$t('agentManage.workflows.columns.enabled')" width="80">
-        <template #default="{ row }">
-          {{ row.enabled ? $t('common.enable') : $t('common.disable') }}
-        </template>
-      </vxe-column>
-      <vxe-column v-if="!readonly" :title="$t('common.operation')" width="140">
-        <template #default="{ row }">
-          <vxe-button type="text" @click="handleToggleEnabled(row)">
-            {{ row.enabled ? $t('common.disable') : $t('common.enable') }}
-          </vxe-button>
-          <vxe-button type="text" status="danger" @click="handleDelete(row)">
-            {{ $t('common.del') }}
-          </vxe-button>
-        </template>
-      </vxe-column>
-    </vxe-table>
-    <p v-if="!resources.length && !loading" class="mt-2 text-xs text-gray-500">
-      {{ $t('agentManage.workflows.empty') }}
-    </p>
+
+    <el-alert
+      v-if="!canManage"
+      type="info"
+      :closable="false"
+      show-icon
+      class="mb-3"
+    >
+      {{ $t('agentManage.workflows.pending') }}
+    </el-alert>
+
+    <template v-else>
+      <div v-if="!readonly" class="mb-3 flex flex-wrap items-center gap-2">
+        <vxe-button status="primary" :loading="syncing" @click="handleSync">
+          {{ $t('agentManage.workflows.sync') }}
+        </vxe-button>
+        <vxe-select
+          v-if="workflowOptions.length"
+          v-model="selectedWorkflowId"
+          :options="workflowOptions"
+          :placeholder="$t('agentManage.workflows.addPlaceholder')"
+          style="width: 280px"
+          clearable
+          transfer
+        />
+        <vxe-button
+          v-if="workflowOptions.length"
+          :disabled="!selectedWorkflowId"
+          :loading="adding"
+          @click="handleAdd"
+        >
+          {{ $t('agentManage.workflows.add') }}
+        </vxe-button>
+      </div>
+      <vxe-table :data="resources" :loading="loading" :size="`mini`" max-height="320">
+        <vxe-column field="displayName" :title="$t('agentManage.workflows.columns.name')" min-width="140" />
+        <vxe-column field="externalId" :title="$t('agentManage.workflows.columns.id')" min-width="160" />
+        <vxe-column field="enabled" :title="$t('agentManage.workflows.columns.enabled')" width="80">
+          <template #default="{ row }">
+            {{ row.enabled ? $t('common.enable') : $t('common.disable') }}
+          </template>
+        </vxe-column>
+        <vxe-column v-if="!readonly" :title="$t('common.operation')" width="140">
+          <template #default="{ row }">
+            <vxe-button type="text" @click="handleToggleEnabled(row)">
+              {{ row.enabled ? $t('common.disable') : $t('common.enable') }}
+            </vxe-button>
+            <vxe-button type="text" status="danger" @click="handleDelete(row)">
+              {{ $t('common.del') }}
+            </vxe-button>
+          </template>
+        </vxe-column>
+      </vxe-table>
+      <p v-if="!resources.length && !loading" class="mt-2 text-xs text-gray-500">
+        {{ $t('agentManage.workflows.empty') }}
+      </p>
+    </template>
   </div>
 </template>

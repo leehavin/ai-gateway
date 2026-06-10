@@ -31,7 +31,8 @@ public class CozeDiscoveryService(
             BotId = b.BotId,
             Name = b.Name,
             Description = b.Description,
-            IconUrl = b.IconUrl
+            IconUrl = b.IconUrl,
+            IsPublished = b.IsPublished
         }).ToList();
     }
 

@@ -1,5 +1,6 @@
 {
-  "pageTitle": "DataChat",
-  "pageDesc": "Enterprise AI Conversation Platform",
-  "loginSubtitle": "Sign in to manage agents, users, and access control"
+  "welcomeBack": "Sign In",
+  "pageTitle": "Enterprise Agent Operations Platform",
+  "pageDesc": "Unified model access, orchestration, and secure access governance",
+  "loginSubtitle": "Enter your account credentials to access the platform"
 }

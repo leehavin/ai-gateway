@@ -51,30 +51,37 @@ public sealed class CozeApiClient(IHttpClientFactory httpClientFactory) : ISingl
         CancellationToken cancellationToken = default)
     {
         var host = NormalizeEndpoint(endpoint);
-        var items = new List<CozeBotItem>();
-        var page = 1;
+        var byId = new Dictionary<string, CozeBotItem>(StringComparer.OrdinalIgnoreCase);
+        Exception? lastError = null;
 
-        while (page <= MaxPages)
+        try
         {
-            var url =
-                $"https://{host}/v1/space/published_bots_list?space_id={Uri.EscapeDataString(spaceId.Trim())}&page_index={page}&page_size={PageSize}";
-            var envelope = await GetAsync<BotListData>(url, apiKey, cancellationToken);
-            var pageItems = envelope?.SpaceBots ?? [];
-            foreach (var b in pageItems)
-            {
-                if (!b.BotId.IsNullOrWhiteSpace())
-                    items.Add(new CozeBotItem(
-                        b.BotId.Trim(),
-                        b.BotName ?? b.BotId,
-                        b.Description,
-                        b.IconUrl));
-            }
-
-            if (pageItems.Count < PageSize) break;
-            page++;
+            await CollectBotsV2Async(host, apiKey, spaceId, byId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            lastError = ex;
         }
 
-        return items;
+        try
+        {
+            await CollectBotsV1Async(host, apiKey, spaceId, byId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            lastError = ex;
+        }
+
+        if (byId.Count == 0)
+        {
+            throw lastError is not null
+                ? PersistdValidateException.Message(
+                    $"未拉取到扣子智能体。请确认 PAT 权限、空间 ID，且智能体已发布到 API 渠道或为可访问的草稿。原始错误：{lastError.Message}")
+                : PersistdValidateException.Message(
+                    "未拉取到扣子智能体。请确认连接器 API Key 有 bot/list 权限，且所选空间下存在智能体（应用类型不会出现在此列表）。");
+        }
+
+        return byId.Values.OrderBy(x => x.Name).ToList();
     }
 
     public async Task<IReadOnlyList<CozeWorkflowItem>> ListWorkflowsAsync(
@@ -85,31 +92,22 @@ public sealed class CozeApiClient(IHttpClientFactory httpClientFactory) : ISingl
         CancellationToken cancellationToken = default)
     {
         var host = NormalizeEndpoint(endpoint);
-        var status = publishStatus.IsNullOrWhiteSpace() ? "published_online" : publishStatus.Trim();
-        var items = new List<CozeWorkflowItem>();
-        var page = 1;
+        var preferred = publishStatus.IsNullOrWhiteSpace() ? "published_online" : publishStatus.Trim();
+        var byId = new Dictionary<string, CozeWorkflowItem>(StringComparer.OrdinalIgnoreCase);
 
-        while (page <= MaxPages)
+        foreach (var status in new[] { preferred, "all", "published_draft" }.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            var url =
-                $"https://{host}/v1/workflows?workspace_id={Uri.EscapeDataString(spaceId.Trim())}&page_num={page}&page_size={PageSize}&publish_status={Uri.EscapeDataString(status)}&workflow_mode=workflow";
-            var envelope = await GetAsync<WorkflowListData>(url, apiKey, cancellationToken);
-            var pageItems = envelope?.Items ?? [];
-            foreach (var w in pageItems)
+            try
             {
-                if (!w.WorkflowId.IsNullOrWhiteSpace())
-                    items.Add(new CozeWorkflowItem(
-                        w.WorkflowId.Trim(),
-                        w.WorkflowName ?? w.WorkflowId,
-                        w.Description,
-                        w.IconUrl));
+                await CollectWorkflowsPageAsync(host, apiKey, spaceId, status, byId, cancellationToken);
             }
-
-            if (envelope?.HasMore != true) break;
-            page++;
+            catch
+            {
+                /* 某一 publish_status 不可用时继续尝试其它状态 */
+            }
         }
 
-        return items;
+        return byId.Values.OrderBy(x => x.Name).ToList();
     }
 
     public async Task<IReadOnlyList<CozeWorkflowItem>> ListBotWorkflowsAsync(
@@ -125,6 +123,99 @@ public sealed class CozeApiClient(IHttpClientFactory httpClientFactory) : ISingl
             .Where(w => !w.Id.IsNullOrWhiteSpace())
             .Select(w => new CozeWorkflowItem(w.Id!.Trim(), w.Name ?? w.Id!, w.Description, null))
             .ToList();
+    }
+
+    private async Task CollectBotsV2Async(
+        string host,
+        string apiKey,
+        string spaceId,
+        IDictionary<string, CozeBotItem> byId,
+        CancellationToken cancellationToken)
+    {
+        var page = 1;
+        while (page <= MaxPages)
+        {
+            var url =
+                $"https://{host}/v1/bots?workspace_id={Uri.EscapeDataString(spaceId.Trim())}&page_index={page}&page_size={PageSize}";
+            var envelope = await GetAsync<BotListV2Data>(url, apiKey, cancellationToken);
+            var pageItems = envelope?.Items ?? [];
+            foreach (var b in pageItems)
+            {
+                var botId = (b.Id ?? b.BotId)?.Trim();
+                if (botId.IsNullOrWhiteSpace()) continue;
+                byId[botId] = new CozeBotItem(
+                    botId,
+                    b.Name ?? b.BotName ?? botId,
+                    b.Description,
+                    b.IconUrl,
+                    b.IsPublished ?? true);
+            }
+
+            if (pageItems.Count < PageSize) break;
+            page++;
+        }
+    }
+
+    private async Task CollectBotsV1Async(
+        string host,
+        string apiKey,
+        string spaceId,
+        IDictionary<string, CozeBotItem> byId,
+        CancellationToken cancellationToken)
+    {
+        var page = 1;
+        while (page <= MaxPages)
+        {
+            var url =
+                $"https://{host}/v1/space/published_bots_list?space_id={Uri.EscapeDataString(spaceId.Trim())}&page_index={page}&page_size={PageSize}";
+            var envelope = await GetAsync<BotListData>(url, apiKey, cancellationToken);
+            var pageItems = envelope?.SpaceBots ?? [];
+            foreach (var b in pageItems)
+            {
+                if (b.BotId.IsNullOrWhiteSpace()) continue;
+                var botId = b.BotId.Trim();
+                byId.TryAdd(botId, new CozeBotItem(
+                    botId,
+                    b.BotName ?? botId,
+                    b.Description,
+                    b.IconUrl,
+                    true));
+            }
+
+            if (pageItems.Count < PageSize) break;
+            page++;
+        }
+    }
+
+    private async Task CollectWorkflowsPageAsync(
+        string host,
+        string apiKey,
+        string spaceId,
+        string publishStatus,
+        IDictionary<string, CozeWorkflowItem> byId,
+        CancellationToken cancellationToken)
+    {
+        var page = 1;
+        while (page <= MaxPages)
+        {
+            var url =
+                $"https://{host}/v1/workflows?workspace_id={Uri.EscapeDataString(spaceId.Trim())}&page_num={page}&page_size={PageSize}&publish_status={Uri.EscapeDataString(publishStatus)}&workflow_mode=workflow";
+            var envelope = await GetAsync<WorkflowListData>(url, apiKey, cancellationToken);
+            var pageItems = envelope?.Items ?? [];
+            foreach (var w in pageItems)
+            {
+                if (w.WorkflowId.IsNullOrWhiteSpace()) continue;
+                var workflowId = w.WorkflowId.Trim();
+                byId.TryAdd(workflowId, new CozeWorkflowItem(
+                    workflowId,
+                    w.WorkflowName ?? workflowId,
+                    w.Description,
+                    w.IconUrl));
+            }
+
+            if (envelope?.HasMore != true) break;
+            page++;
+        }
     }
 
     private async Task<TData?> GetAsync<TData>(string url, string apiKey, CancellationToken cancellationToken) where TData : class
@@ -175,6 +266,22 @@ public sealed class CozeApiClient(IHttpClientFactory httpClientFactory) : ISingl
         public string? Id { get; set; }
         public string? Name { get; set; }
         public string? IconUrl { get; set; }
+    }
+
+    private sealed class BotListV2Data
+    {
+        public List<BotV2Row>? Items { get; set; }
+    }
+
+    private sealed class BotV2Row
+    {
+        public string? Id { get; set; }
+        public string? BotId { get; set; }
+        public string? Name { get; set; }
+        public string? BotName { get; set; }
+        public string? Description { get; set; }
+        public string? IconUrl { get; set; }
+        public bool? IsPublished { get; set; }
     }
 
     private sealed class BotListData

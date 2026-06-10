@@ -35,15 +35,21 @@ public sealed class AuthController : ControllerBase
 
     /// <summary>WinForms / 宿主嵌入：用 ServiceKey 为已登录用户换取会话 Token。</summary>
     [HttpPost("token")]
-    public ActionResult<AuthResponse> IssueToken([FromBody] IssueTokenRequest request)
+    public async Task<ActionResult<AuthResponse>> IssueToken(
+        [FromBody] IssueTokenRequest request,
+        CancellationToken cancellationToken)
     {
         var serviceKey = ResolveServiceKey(request.ServiceKey);
         if (string.IsNullOrWhiteSpace(serviceKey))
             return Unauthorized(new { message = "缺少或无效的服务密钥。" });
 
-        var result = _auth.IssueTrustedUser(serviceKey, request.UserId ?? "", request.UserName);
+        var result = await _auth.IssueTrustedUserAsync(
+            serviceKey,
+            request.UserId,
+            request.UserName,
+            cancellationToken);
         if (result is null)
-            return Unauthorized(new { message = "无法签发用户 Token，请检查 ServiceKey 与 userId。" });
+            return Unauthorized(new { message = "无法签发用户 Token，请检查 ServiceKey、userId，或确认 sys_user 中存在对应登录账号。" });
 
         return Ok(ToResponse(result));
     }

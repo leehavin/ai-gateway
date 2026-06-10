@@ -6,6 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>false</InvariantGlobalization>
     <NoWarn>1701;1702;1591;8618;8601;</NoWarn>
+    <!-- web/ai-admin/apps/web-ele/dist，相对本 csproj -->
+    <AdminSpaDistDir>$(MSBuildThisFileDirectory)..\..\..\web\ai-admin\apps\web-ele\dist\</AdminSpaDistDir>
+    <AdminSpaWwwRoot>$(MSBuildProjectDirectory)\wwwroot\</AdminSpaWwwRoot>
+    <AdminSpaMonorepoDir>$(MSBuildThisFileDirectory)..\..\..\web\ai-admin\</AdminSpaMonorepoDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,5 +19,31 @@
     <ProjectReference Include="..\AIAdmin.Multiplex\AIAdmin.Multiplex.csproj" />
     <ProjectReference Include="..\AIAdmin.Workflow\AIAdmin.Workflow.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- BuildAdminSpa=true 时先 pnpm build:ele，再从 dist 同步到 wwwroot -->
+  <Target Name="BuildAdminSpaFrontend" BeforeTargets="CopyAdminSpaAssets" Condition="'$(BuildAdminSpa)' == 'true'">
+    <Message Importance="high" Text="Building AIAdmin SPA (web-ele)..." />
+    <Exec Command="pnpm run build:ele" WorkingDirectory="$(AdminSpaMonorepoDir)" />
+  </Target>
+
+  <Target Name="CopyAdminSpaAssets" BeforeTargets="Build" Condition="Exists('$(AdminSpaDistDir)')">
+    <ItemGroup>
+      <_AdminSpaFiles Include="$(AdminSpaDistDir)**\*.*" />
+    </ItemGroup>
+    <MakeDir Directories="$(AdminSpaWwwRoot)" />
+    <Copy
+      SourceFiles="@(_AdminSpaFiles)"
+      DestinationFiles="@(_AdminSpaFiles->'$(AdminSpaWwwRoot)%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Synced web-ele dist → wwwroot ($(_AdminSpaFiles->Count()) files)" />
+  </Target>
+
+  <Target Name="WarnMissingAdminSpa" AfterTargets="Build" Condition="!Exists('$(AdminSpaWwwRoot)index.html')">
+    <Warning Text="wwwroot/index.html 不存在。开发可单独跑 web-ele；发布请执行 scripts/publish-admin.ps1 或 dotnet publish -p:BuildAdminSpa=true" />
+  </Target>
 
 </Project>

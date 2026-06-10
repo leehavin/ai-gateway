@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { BRAND } from '../constants/brand'
-import type { DomainItem, GatewayHealth } from '../types'
+import type { GatewayHealth } from '../types'
 
 const props = defineProps<{
   title: string
-  domains: DomainItem[]
-  domainId: string
   activeProvider?: string
   loading: boolean
   error: string | null
@@ -14,16 +12,13 @@ const props = defineProps<{
   userName?: string
   showMenu: boolean
   canExport?: boolean
-  paramsOpen?: boolean
 }>()
 
 const emit = defineEmits<{
-  'update:domainId': [value: string]
   refresh: []
   logout: []
   toggleMenu: []
   toggleHistory: []
-  openParams: []
   exportMarkdown: []
   exportJson: []
   exportPdf: []
@@ -78,18 +73,9 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
       </div>
     </div>
 
-    <div class="header-center">
-      <label class="domain-field">
-        <span class="domain-field-label">智能体</span>
-        <select
-          class="domain-select"
-          :value="domainId"
-          :disabled="loading || !!error"
-          @change="emit('update:domainId', ($event.target as HTMLSelectElement).value)"
-        >
-          <option v-for="d in domains" :key="d.id" :value="d.id">{{ d.displayName }}</option>
-        </select>
-      </label>
+    <div class="header-spacer" />
+
+    <div class="header-right">
       <button
         v-if="isCoze"
         type="button"
@@ -101,9 +87,6 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
         <i class="icon-add"></i>
         <span class="coze-new-label">新会话</span>
       </button>
-    </div>
-
-    <div class="header-right">
       <template v-if="loading">
         <span class="dc-badge dc-badge--muted">连接中…</span>
       </template>
@@ -129,15 +112,6 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
         @click="emit('toggleHistory')"
       >
         <i class="icon-history"></i>
-      </button>
-      <button
-        type="button"
-        class="dc-icon-btn"
-        :class="paramsOpen && 'dc-icon-btn--active'"
-        title="生成参数"
-        @click="emit('openParams')"
-      >
-        <i class="icon-priority"></i>
       </button>
       <div ref="exportRoot" class="export-wrap">
         <button
@@ -226,52 +200,9 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
   letter-spacing: 0.02em;
 }
 
-.header-center {
+.header-spacer {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 8px;
   min-width: 0;
-}
-
-.domain-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 4px 4px 12px;
-  background: var(--dc-brand-soft);
-  border: 1px solid rgba(94, 124, 224, 0.2);
-  border-radius: var(--dc-radius-pill);
-}
-
-.domain-field-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--dc-brand);
-  white-space: nowrap;
-}
-
-.domain-select {
-  appearance: none;
-  border: none;
-  background: #fff
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2371757f' d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E")
-    no-repeat right 10px center;
-  padding: 6px 28px 6px 12px;
-  border-radius: var(--dc-radius-pill);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--dc-text);
-  cursor: pointer;
-  max-width: 220px;
-  outline: none;
-}
-
-.domain-select:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .coze-new-btn {
@@ -364,12 +295,6 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
   font-size: 16px;
 }
 
-.dc-icon-btn--active {
-  border-color: rgba(94, 124, 224, 0.55);
-  color: var(--dc-brand);
-  background: var(--dc-brand-soft);
-}
-
 .export-wrap {
   position: relative;
 }
@@ -410,10 +335,6 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
 @media (max-width: 900px) {
   .header-sub {
     display: none;
-  }
-
-  .header-center {
-    justify-content: flex-end;
   }
 
   .dc-badge:not(.dc-badge--error) {
@@ -458,10 +379,6 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
 }
 
 @media (max-width: 640px) {
-  .domain-field-label {
-    display: none;
-  }
-
   .user-chip-name {
     max-width: 64px;
   }

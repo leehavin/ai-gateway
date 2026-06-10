@@ -29,10 +29,45 @@ public sealed class LocalConfigAuthProvider : IHostAuthProvider
         if (entry is null || entry.Password != password)
             return Task.FromResult<AuthUser?>(null);
 
-        return Task.FromResult<AuthUser?>(new AuthUser
+        return Task.FromResult<AuthUser?>(ToAuthUser(entry));
+    }
+
+    public Task<AuthUser?> ResolveEmbeddedUserAsync(
+        string? userId,
+        string? userName,
+        CancellationToken cancellationToken = default)
+    {
+        if (!string.IsNullOrWhiteSpace(userName))
         {
-            UserId = entry.UserId.Trim(),
-            UserName = string.IsNullOrWhiteSpace(entry.UserName) ? entry.UserId.Trim() : entry.UserName.Trim()
+            var byLogin = FindUserEntry(userName);
+            if (byLogin is not null)
+                return Task.FromResult<AuthUser?>(ToAuthUser(byLogin));
+        }
+
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            var byId = _options.Users.FirstOrDefault(u =>
+                string.Equals(u.UserId.Trim(), userId.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (byId is not null)
+                return Task.FromResult<AuthUser?>(ToAuthUser(byId));
+        }
+
+        return Task.FromResult<AuthUser?>(null);
+    }
+
+    private LocalAuthUserEntry? FindUserEntry(string username)
+    {
+        var key = username.Trim();
+        return _options.Users.FirstOrDefault(u =>
+        {
+            var login = string.IsNullOrWhiteSpace(u.Login) ? u.UserId : u.Login!;
+            return string.Equals(login, key, StringComparison.OrdinalIgnoreCase);
         });
     }
+
+    private static AuthUser ToAuthUser(LocalAuthUserEntry entry) => new()
+    {
+        UserId = entry.UserId.Trim(),
+        UserName = string.IsNullOrWhiteSpace(entry.UserName) ? entry.UserId.Trim() : entry.UserName.Trim()
+    };
 }

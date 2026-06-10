@@ -8,11 +8,13 @@ import {
   getBots,
 } from '#/api/agent/cozeDiscovery';
 import { $t } from '@vben/locales';
+import { ElMessage } from 'element-plus';
 import AgentWorkflowPanel from './AgentWorkflowPanel.vue';
 
 const emits = defineEmits<{ (e: 'reload'): void }>();
 const reDrawerRef = ref();
 const formRef = ref();
+const workflowPanelRef = ref<HTMLElement>();
 const editId = ref<string>();
 const viewMode = ref(false);
 
@@ -90,6 +92,11 @@ const loadAccounts = async (provider: string) => {
   }));
 };
 
+const formatBotLabel = (bot: { name?: string; botId: string; isPublished?: boolean }) => {
+  const base = bot.name ? `${bot.name} (${bot.botId})` : bot.botId;
+  return bot.isPublished === false ? `${base} [${$t('agentManage.discovery.draft')}]` : base;
+};
+
 const loadWorkspaces = async (accountId?: number | null) => {
   workspaceOptions.value = [];
   botOptions.value = [];
@@ -101,6 +108,11 @@ const loadWorkspaces = async (accountId?: number | null) => {
       label: x.name ? `${x.name} (${x.id})` : x.id,
       value: x.id,
     }));
+    if (!list.length) {
+      ElMessage.warning($t('agentManage.discovery.emptyWorkspace'));
+    }
+  } catch (error: any) {
+    ElMessage.error(error?.message ?? $t('agentManage.discovery.loadFailed'));
   } finally {
     discoveryLoading.value = false;
   }
@@ -113,10 +125,15 @@ const loadBots = async (accountId?: number | null, spaceId?: string) => {
   try {
     const list = (await getBots(accountId, spaceId)) as any[];
     botOptions.value = list.map((x) => ({
-      label: x.name ? `${x.name} (${x.botId})` : x.botId,
+      label: formatBotLabel(x),
       value: x.botId,
       description: x.description,
     }));
+    if (!list.length) {
+      ElMessage.warning($t('agentManage.discovery.emptyBot'));
+    }
+  } catch (error: any) {
+    ElMessage.error(error?.message ?? $t('agentManage.discovery.loadFailed'));
   } finally {
     discoveryLoading.value = false;
   }
@@ -445,13 +462,28 @@ const showViewModal = (record: any) => {
   });
 };
 
+const scrollToWorkflowPanel = () => {
+  workflowPanelRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
 const handleSubmit = async () => {
   const validate = await formRef.value?.validate();
   if (validate) return;
   reDrawerRef.value?.setSubmitting(true);
   try {
-    await submitData(buildSubmitPayload(), editId.value);
+    const isNewCoze = !editId.value && formData.value.provider === 'coze';
+    const result = await submitData(buildSubmitPayload(), editId.value);
     emits('reload');
+    if (isNewCoze && typeof result === 'string') {
+      editId.value = result;
+      reDrawerRef.value?.setTitle(
+        `${$t('agentManage.edit')} -> ${formData.value.displayName}`,
+      );
+      ElMessage.success($t('agentManage.coze.savedContinueWorkflow'));
+      await nextTick();
+      scrollToWorkflowPanel();
+      return;
+    }
     reDrawerRef.value.close();
   } finally {
     reDrawerRef.value?.setSubmitting(false);
@@ -463,6 +495,20 @@ defineExpose({ showAddModal, showEditModal, showViewModal });
 
 <template>
   <re-drawer ref="reDrawerRef" size="760px" @submit="handleSubmit">
+    <el-alert
+      v-if="formData.provider === 'coze' && !viewMode"
+      type="info"
+      :closable="false"
+      show-icon
+      class="mb-4"
+    >
+      <template #title>{{ $t('agentManage.form.coze.guideTitle') }}</template>
+      <ul class="coze-guide-list">
+        <li>{{ $t('agentManage.form.coze.guideBot') }}</li>
+        <li>{{ $t('agentManage.form.coze.guideWorkflow') }}</li>
+        <li>{{ $t('agentManage.form.coze.guideSkillTool') }}</li>
+      </ul>
+    </el-alert>
     <vxe-form
       ref="formRef"
       :data="formData"
@@ -472,12 +518,27 @@ defineExpose({ showAddModal, showEditModal, showViewModal });
       :titleColon="true"
       :titleAlign="`right`"
     />
-    <AgentWorkflowPanel
-      :agent-id="editId"
-      :provider="formData.provider"
-      :provider-account-id="formData.providerAccountId"
-      :coze-config="formData.cozeConfig"
-      :readonly="viewMode"
-    />
+    <div ref="workflowPanelRef">
+      <AgentWorkflowPanel
+        :agent-id="editId"
+        :provider="formData.provider"
+        :provider-account-id="formData.providerAccountId"
+        :coze-config="formData.cozeConfig"
+        :readonly="viewMode"
+      />
+    </div>
   </re-drawer>
 </template>
+
+<style scoped>
+.coze-guide-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.coze-guide-list li + li {
+  margin-top: 0.35rem;
+}
+</style>

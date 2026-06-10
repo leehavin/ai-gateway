@@ -26,10 +26,15 @@
     "model": "模型",
     "configJson": "平台配置 JSON",
     "coze": {
+      "sectionTitle": "Coze 接入（步骤 1）",
       "workspace": "扣子空间",
-      "bot": "扣子智能体",
+      "bot": "对话 Bot",
       "userIdPrefix": "用户 ID 前缀",
-      "autoSaveHistory": "自动保存历史"
+      "autoSaveHistory": "自动保存历史",
+      "guideTitle": "Coze 能力说明",
+      "guideBot": "对话 Bot：仅「智能体」类型会出现；「应用」（如写作工具）不在此列表。插件、Skill 请在扣子控制台绑定到 Bot。",
+      "guideWorkflow": "工作流：作为独立子能力，保存智能体后在下方步骤 2 同步或添加，供对话端 / 菜单调用。",
+      "guideSkillTool": "Skill / Tool：随 Bot 在扣子侧生效，本系统无需重复配置；后续如需细粒度授权再扩展。"
     },
     "placeholderText": "输入提示",
     "quickPrompts": "快捷问题 JSON",
@@ -43,8 +48,8 @@
       "providerAccount": "可选，绑定连接器账号",
       "configJson": "各平台差异配置，见占位示例",
       "coze": {
-        "workspace": "选择连接器后从 Coze API 加载",
-        "bot": "选择空间后加载已发布智能体"
+        "workspace": "选择连接器后从 Coze API 加载空间",
+        "bot": "选择已发布 Bot；其插件与 Skill 继承自扣子控制台配置"
       }
     },
     "validate": {
@@ -56,13 +61,23 @@
       "providerAccount": "请选择连接器",
       "coze": {
         "workspace": "请选择扣子空间",
-        "bot": "请选择扣子智能体"
+        "bot": "请选择对话 Bot"
       }
     }
   },
+  "coze": {
+    "savedContinueWorkflow": "智能体已保存，请在下方配置工作流（可选），完成后关闭抽屉"
+  },
+  "discovery": {
+    "draft": "草稿",
+    "loadFailed": "从 Coze 拉取列表失败，请检查连接器 API Key 与 endpoint（默认 api.coze.cn）",
+    "emptyWorkspace": "未拉取到空间，请确认 PAT 已勾选 workspace 相关权限",
+    "emptyBot": "未拉取到智能体：应用类型不会出现；智能体需发布到 API 渠道或为可访问草稿"
+  },
   "workflows": {
-    "title": "关联工作流（可选）",
-    "hint": "不配置时 Gateway 运行时从 Coze 拉取；配置后可用于细粒度授权",
+    "title": "工作流（步骤 2，可选）",
+    "hint": "未添加时运行时从 Coze 拉取；添加后可做细粒度授权",
+    "pending": "请先保存上方智能体信息，保存后将在此配置工作流",
     "sync": "从 Coze 同步",
     "add": "添加",
     "addPlaceholder": "选择要添加的工作流",

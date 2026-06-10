@@ -1,5 +1,6 @@
 {
-  "pageTitle": "DataChat",
-  "pageDesc": "企业 AI 对话中台",
-  "loginSubtitle": "登录后管理智能体、用户与权限配置"
+  "welcomeBack": "账号登录",
+  "pageTitle": "企业级智能体运营平台",
+  "pageDesc": "统一模型接入与编排调度，构建安全可控的权限治理体系",
+  "loginSubtitle": "请输入账号与密码，完成身份验证后进入系统"
 }

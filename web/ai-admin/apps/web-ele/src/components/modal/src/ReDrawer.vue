@@ -38,7 +38,11 @@ const setSubmitting = (value: boolean) => {
   submitting.value = value;
 };
 
-defineExpose({ show, close, setSubmitting });
+const setTitle = (title: string) => {
+  drawerOptions.title = title;
+};
+
+defineExpose({ show, close, setSubmitting, setTitle });
 </script>
 
 <template>

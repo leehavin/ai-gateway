@@ -30,18 +30,28 @@ public sealed class GatewayAuthService
         return user is null || !_tokens.IsConfigured ? null : _tokens.Issue(user);
     }
 
-    public AuthResult? IssueTrustedUser(string serviceKey, string userId, string? userName)
+    public async Task<AuthResult?> IssueTrustedUserAsync(
+        string serviceKey,
+        string? userId,
+        string? userName,
+        CancellationToken cancellationToken = default)
     {
         if (!IsTrustedServiceKey(serviceKey) || !_tokens.IsConfigured)
             return null;
-        if (string.IsNullOrWhiteSpace(userId))
-            return null;
 
-        var user = new AuthUser
+        var user = await _provider.ResolveEmbeddedUserAsync(userId, userName, cancellationToken);
+        if (user is null)
         {
-            UserId = userId.Trim(),
-            UserName = string.IsNullOrWhiteSpace(userName) ? userId.Trim() : userName.Trim()
-        };
+            if (string.IsNullOrWhiteSpace(userId))
+                return null;
+
+            user = new AuthUser
+            {
+                UserId = userId.Trim(),
+                UserName = string.IsNullOrWhiteSpace(userName) ? userId.Trim() : userName.Trim()
+            };
+        }
+
         return _tokens.Issue(user);
     }
 

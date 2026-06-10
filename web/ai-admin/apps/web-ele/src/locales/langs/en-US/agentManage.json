@@ -26,10 +26,15 @@
     "model": "Model",
     "configJson": "Config JSON",
     "coze": {
+      "sectionTitle": "Coze Connection (Step 1)",
       "workspace": "Coze Workspace",
-      "bot": "Coze Bot",
+      "bot": "Chat Bot",
       "userIdPrefix": "User ID Prefix",
-      "autoSaveHistory": "Auto Save History"
+      "autoSaveHistory": "Auto Save History",
+      "guideTitle": "How Coze capabilities map here",
+      "guideBot": "Chat Bot: only Coze agents appear here; apps (e.g. writing tools) are excluded. Bind plugins/skills to the bot in Coze Studio.",
+      "guideWorkflow": "Workflows: optional sub-capabilities. Sync or add them in Step 2 after saving the agent for slash-menu access.",
+      "guideSkillTool": "Skills / tools: inherited from the bot in Coze. No duplicate setup here unless fine-grained access is added later."
     },
     "placeholderText": "Input Placeholder",
     "quickPrompts": "Quick Prompts JSON",
@@ -43,8 +48,8 @@
       "providerAccount": "Optional connector account",
       "configJson": "Provider-specific JSON",
       "coze": {
-        "workspace": "Loaded from Coze API after selecting connector",
-        "bot": "Published bots in selected workspace"
+        "workspace": "Loaded from Coze API after selecting a connector",
+        "bot": "Published bot; plugins and skills come from Coze Studio"
       }
     },
     "validate": {
@@ -56,13 +61,23 @@
       "providerAccount": "Select connector",
       "coze": {
         "workspace": "Select workspace",
-        "bot": "Select bot"
+        "bot": "Select a chat bot"
       }
     }
   },
+  "coze": {
+    "savedContinueWorkflow": "Agent saved. Configure workflows below (optional), then close the drawer."
+  },
+  "discovery": {
+    "draft": "draft",
+    "loadFailed": "Failed to load from Coze. Check connector API key and endpoint (default api.coze.cn).",
+    "emptyWorkspace": "No workspaces returned. Verify PAT workspace permissions.",
+    "emptyBot": "No bots returned. Apps are excluded; agents must be API-published or accessible drafts."
+  },
   "workflows": {
-    "title": "Workflows (optional)",
-    "hint": "Leave empty to fetch from Coze at runtime; configure for fine-grained access control",
+    "title": "Workflows (Step 2, optional)",
+    "hint": "Fetched from Coze at runtime when empty; add rows for fine-grained access",
+    "pending": "Save the agent above first. Workflow configuration appears after save.",
     "sync": "Sync from Coze",
     "add": "Add",
     "addPlaceholder": "Select workflow to add",

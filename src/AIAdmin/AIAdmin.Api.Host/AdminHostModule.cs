@@ -250,6 +250,8 @@ namespace AIAdmin.Api.Host
             //app.UseHsts();
 
             app.UseCookiePolicy();
+            // SPA 静态资源（web-ele dist → wwwroot）；API 仍走 /api/v1
+            app.UseDefaultFiles();
             app.UseStaticFiles();
             app.UseRouting();
 

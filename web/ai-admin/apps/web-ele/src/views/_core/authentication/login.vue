@@ -49,6 +49,8 @@ const formSchema = computed((): VbenFormSchema[] => {
   <AuthenticationLogin
     :form-schema="formSchema"
     :loading="authStore.loginLoading"
+    :title="$t('authentication.welcomeBack')"
+    :sub-title="$t('authentication.loginSubtitle')"
     @submit="authStore.authLogin"
   />
 </template>
