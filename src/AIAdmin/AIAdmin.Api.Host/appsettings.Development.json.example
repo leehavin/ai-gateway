@@ -1,0 +1,9 @@
+{
+  "ConnectionOptions": {
+    "DbType": "SqlServer",
+    "ConnectionString": "Server=127.0.0.1,1433;Database=chat;User Id=sa;Password=YOUR_PASSWORD;TrustServerCertificate=True;Encrypt=False;"
+  },
+  "App": {
+    "CorsOrigins": "http://localhost:5062,http://localhost:5777"
+  }
+}

@@ -1,0 +1,1 @@
+const e="强制离线",n="发送消息",s={name:"用户"},c={connectionId:"连接Id",userName:"用户",connectedTime:"连接时间",disconnectedTime:"断开时间",ip:"IP地址",ipStr:"IP归属地"},o={offline:e,sendMessage:n,search:s,columns:c};export{c as columns,o as default,e as offline,s as search,n as sendMessage};

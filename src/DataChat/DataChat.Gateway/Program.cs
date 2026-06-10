@@ -28,7 +28,24 @@ finally
 
 static void RunApp(string[] args)
 {
-var builder = WebApplication.CreateBuilder(args);
+#if DEBUG
+    if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"))
+        && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")))
+    {
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
+    }
+#endif
+
+    var contentRoot = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    Directory.CreateDirectory(Path.Combine(contentRoot, "logs"));
+    Directory.CreateDirectory(Path.Combine(contentRoot, "uploads"));
+    Directory.CreateDirectory(Path.Combine(contentRoot, "data"));
+
+    var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+    {
+        Args = args,
+        ContentRootPath = contentRoot,
+    });
 
 // 从配置（appsettings.json 的 Serilog 节）读取日志设置，并补充运行时上下文 enrich。
 builder.Host.UseSerilog((context, services, configuration) => configuration
@@ -90,6 +107,9 @@ builder.Services.AddCors(options =>
 builder.Services.AddDataChatGateway(builder.Configuration);
 
 var app = builder.Build();
+
+Log.Information("DataChat Gateway 当前环境：{Environment}，ContentRoot={ContentRoot}",
+    app.Environment.EnvironmentName, app.Environment.ContentRootPath);
 
 // 结构化请求日志：每个 HTTP 请求一行，含方法/路径/状态码/耗时。
 app.UseSerilogRequestLogging(options =>

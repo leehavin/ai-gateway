@@ -1,9 +1,0 @@
-{
-  "ConnectionOptions": {
-    "DbType": "SqlServer",
-    "ConnectionString": "Server=192.168.106.207,1433;Database=chat;User Id=sa;Password=123456;TrustServerCertificate=True;Encrypt=False;"
-  },
-  "FileSystemOptions": {
-    "Path": ""
-  }
-}

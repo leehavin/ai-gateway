@@ -46,7 +46,7 @@
 | 领域服务 | **多个自研 HTTP/SSE 微服务**，契约由 `domains.json` + Provider 适配 |
 | 上下文 | 会话与多轮消息**仅存本地 SQLite**，请求时组装 `history` |
 | 认证 | 各服务 **API Key**（Bearer 或自定义 Header），密钥不进仓库 |
-| 客户端 | .NET 8、Windows 10+、**必须安装 WebView2 Runtime** |
+| 客户端 | .NET 10、Windows 10+、**必须安装 WebView2 Runtime** |
 | 用户 | 企业内网用户，单用户桌面会话为主 |
 
 ---

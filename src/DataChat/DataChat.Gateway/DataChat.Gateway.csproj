@@ -1,9 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- 与 AIAdmin 一致：避免 StaticWebAssets 清单绑定本机源码路径 -->
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
   </PropertyGroup>
+  <ItemGroup>
+    <Content Remove="appsettings.Development.local.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="appsettings.Development.local.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
@@ -15,5 +25,10 @@
     <ProjectReference Include="..\DataChat.Core\DataChat.Core.csproj" />
     <ProjectReference Include="..\DataChat.Infrastructure\DataChat.Infrastructure.csproj" />
     <ProjectReference Include="..\DataChat.Providers\DataChat.Providers.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="appsettings.Development.json.example">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>

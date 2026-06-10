@@ -1,0 +1,1 @@
+const t="账号登录",e="企业级智能体运营平台",c="统一模型接入与编排调度，构建安全可控的权限治理体系",o="请输入账号与密码，完成身份验证后进入系统",n={welcomeBack:t,pageTitle:e,pageDesc:c,loginSubtitle:o};export{n as default,o as loginSubtitle,c as pageDesc,e as pageTitle,t as welcomeBack};

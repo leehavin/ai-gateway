@@ -79,7 +79,8 @@ public class AuthService(IAdminCache cache, Kernel kernel, IOAuth2UserManager oA
         var password = MD5Encryption.Encrypt(input.Password);
         var user = await _db.Queryable<UserEntity>().FirstAsync(u => u.Account.Equals(input.Account) && u.Password.Equals(password)) ?? throw PersistdValidateException.Message("用户名不存在或用户名密码错误！");
         if (user.Status != (int)UserStatusEnum.Normal) throw PersistdValidateException.Message("帐号状态异常，请联系管理员");
-        var userRole = await _db.Queryable<UserRoleEntity>().FirstAsync(x => x.UserId == user.Id);
+        var userRole = await _db.Queryable<UserRoleEntity>().FirstAsync(x => x.UserId == user.Id)
+            ?? throw PersistdValidateException.Message("帐号未分配角色，请执行 AIAdmin.Zero --seed 或 db/admin/seed-admin-user.sql");
         // 映射结果
         var output = user.Adapt<LoginOutput>();
 

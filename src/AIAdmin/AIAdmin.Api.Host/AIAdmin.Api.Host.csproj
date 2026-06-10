@@ -6,11 +6,23 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>false</InvariantGlobalization>
     <NoWarn>1701;1702;1591;8618;8601;</NoWarn>
+    <!-- 避免 StaticWebAssets 清单指向本机源码 wwwroot，分发 exe 到其它目录会 DirectoryNotFound -->
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
     <!-- web/ai-admin/apps/web-ele/dist，相对本 csproj -->
     <AdminSpaDistDir>$(MSBuildThisFileDirectory)..\..\..\web\ai-admin\apps\web-ele\dist\</AdminSpaDistDir>
     <AdminSpaWwwRoot>$(MSBuildProjectDirectory)\wwwroot\</AdminSpaWwwRoot>
     <AdminSpaMonorepoDir>$(MSBuildThisFileDirectory)..\..\..\web\ai-admin\</AdminSpaMonorepoDir>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Remove="appsettings.Development.local.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="appsettings.Development.local.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\AIAdmin.Application\AIAdmin.Application.csproj" />
@@ -20,30 +32,42 @@
     <ProjectReference Include="..\AIAdmin.Workflow\AIAdmin.Workflow.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Include="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-  </ItemGroup>
-
-  <!-- BuildAdminSpa=true 时先 pnpm build:ele，再从 dist 同步到 wwwroot -->
-  <Target Name="BuildAdminSpaFrontend" BeforeTargets="CopyAdminSpaAssets" Condition="'$(BuildAdminSpa)' == 'true'">
-    <Message Importance="high" Text="Building AIAdmin SPA (web-ele)..." />
-    <Exec Command="pnpm run build:ele" WorkingDirectory="$(AdminSpaMonorepoDir)" />
+  <!-- 输出目录始终有 wwwroot；有 SPA 产物时再同步文件（StaticWebAssets 已关，靠 CopyAdminSpaToOutput 复制） -->
+  <Target Name="EnsureAdminWwwRoot" BeforeTargets="PrepareForBuild">
+    <MakeDir Directories="$(AdminSpaWwwRoot)" />
   </Target>
 
-  <Target Name="CopyAdminSpaAssets" BeforeTargets="Build" Condition="Exists('$(AdminSpaDistDir)')">
-    <ItemGroup>
+  <!-- 同步 web-ele dist → 项目 wwwroot -->
+  <Target Name="PrepareAdminSpaAssets" BeforeTargets="PrepareForBuild" DependsOnTargets="EnsureAdminWwwRoot">
+    <Message Importance="high" Text="Building AIAdmin SPA (web-ele)..." Condition="'$(BuildAdminSpa)' == 'true'" />
+    <Exec Command="pnpm run build:ele" WorkingDirectory="$(AdminSpaMonorepoDir)" Condition="'$(BuildAdminSpa)' == 'true'" />
+    <ItemGroup Condition="Exists('$(AdminSpaDistDir)')">
       <_AdminSpaFiles Include="$(AdminSpaDistDir)**\*.*" />
     </ItemGroup>
-    <MakeDir Directories="$(AdminSpaWwwRoot)" />
-    <Copy
-      SourceFiles="@(_AdminSpaFiles)"
-      DestinationFiles="@(_AdminSpaFiles->'$(AdminSpaWwwRoot)%(RecursiveDir)%(Filename)%(Extension)')"
-      SkipUnchangedFiles="true" />
-    <Message Importance="high" Text="Synced web-ele dist → wwwroot ($(_AdminSpaFiles->Count()) files)" />
+    <Copy SourceFiles="@(_AdminSpaFiles)" DestinationFiles="@(_AdminSpaFiles->'$(AdminSpaWwwRoot)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="Exists('$(AdminSpaDistDir)')" />
+    <Message Importance="high" Text="Synced web-ele dist to wwwroot" Condition="Exists('$(AdminSpaDistDir)')" />
+  </Target>
+
+  <!-- 输出目录始终有 wwwroot；有 SPA 产物时再同步文件 -->
+  <Target Name="CopyAdminSpaToOutput" AfterTargets="Build">
+    <MakeDir Directories="$(OutputPath)wwwroot\" />
+    <ItemGroup Condition="Exists('$(AdminSpaWwwRoot)index.html')">
+      <_AdminSpaOutFiles Include="$(AdminSpaWwwRoot)**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_AdminSpaOutFiles)" DestinationFiles="@(_AdminSpaOutFiles->'$(OutputPath)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="Exists('$(AdminSpaWwwRoot)index.html')" />
+  </Target>
+
+  <!-- publish 目录同步 wwwroot（与 bin 输出一致） -->
+  <Target Name="CopyAdminSpaToPublish" AfterTargets="Publish">
+    <MakeDir Directories="$(PublishDir)wwwroot\" />
+    <ItemGroup Condition="Exists('$(AdminSpaWwwRoot)index.html')">
+      <_AdminSpaPubFiles Include="$(AdminSpaWwwRoot)**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_AdminSpaPubFiles)" DestinationFiles="@(_AdminSpaPubFiles->'$(PublishDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="Exists('$(AdminSpaWwwRoot)index.html')" />
   </Target>
 
   <Target Name="WarnMissingAdminSpa" AfterTargets="Build" Condition="!Exists('$(AdminSpaWwwRoot)index.html')">
-    <Warning Text="wwwroot/index.html 不存在。开发可单独跑 web-ele；发布请执行 scripts/publish-admin.ps1 或 dotnet publish -p:BuildAdminSpa=true" />
+    <Warning Text="wwwroot/index.html 不存在。请先执行：cd web/ai-admin &amp;&amp; pnpm install &amp;&amp; pnpm build:ele ，或 dotnet build -p:BuildAdminSpa=true" />
   </Target>
 
 </Project>

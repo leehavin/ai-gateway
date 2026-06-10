@@ -184,6 +184,10 @@ dist.war
 *-dist.tar
 *-dist.war
 
+# AIAdmin SPA（由 web-ele dist 同步，勿提交）
+src/AIAdmin/AIAdmin.Api.Host/wwwroot/**
+!src/AIAdmin/AIAdmin.Api.Host/wwwroot/.gitkeep
+
 # Vite 自动生成的临时配置
 vite.config.mts.*
 vite.config.mjs.*

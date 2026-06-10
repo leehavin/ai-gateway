@@ -4,7 +4,7 @@
 
 | 子系统 | 技术栈 | 默认端口 |
 |--------|--------|----------|
-| DataChat Gateway | .NET 8 | `5080` |
+| DataChat Gateway | .NET 10 | `5080` |
 | AIAdmin API | .NET 10 | `5062` |
 | 对话前端 `web/chat-ui` | Vue 3 + Vite | `5173` |
 | 管理前端 `web/ai-admin` | Vben Admin 5 + Element Plus | `5777` |
@@ -72,7 +72,7 @@ ai-gateway/
 │       └── seed-admin-user.sql  # 最小登录（无菜单）
 ├── docs/                        # 设计文档与 API 说明
 ├── src/
-│   ├── DataChat/                # 对话网关（net8.0）
+│   ├── DataChat/                # 对话网关（net10.0）
 │   │   ├── DataChat.Core
 │   │   ├── DataChat.Infrastructure
 │   │   ├── DataChat.Providers   # DB-GPT / Coze / Custom
@@ -97,7 +97,7 @@ ai-gateway/
 
 | 组件 | 版本 |
 |------|------|
-| .NET SDK | **8.0+**（DataChat）+ **10.0+**（AIAdmin） |
+| .NET SDK | **10.0+** |
 | SQL Server | Gateway / Admin 推荐共用实例 |
 | Node.js | 18+（前端构建） |
 | pnpm | `web/ai-admin` 使用（`corepack enable`） |
@@ -142,10 +142,11 @@ Gateway 编辑 `src\DataChat/DataChat.Gateway/appsettings.json` 中的 `ValidTok
 ```powershell
 cd src\DataChat\DataChat.Gateway
 dotnet run
+# 或 Rebuild 后双击 bin\Debug\net10.0\DataChat.Gateway.exe（自动 Development + :5080）
 ```
 
 - API：**http://127.0.0.1:5080**
-- Swagger：**http://127.0.0.1:5080/swagger**
+- Swagger：**http://127.0.0.1:5080/swagger**（Development 或 `Gateway:EnableSwagger=true`）
 - 健康检查：`curl http://127.0.0.1:5080/v1/health`
 
 ### 5. 启动对话前端
@@ -302,8 +303,40 @@ Authorization: Bearer demo-token
 
 - 对接 API 的版本：**`web/ai-admin/apps/web-ele`**（Element Plus）
 - `web-antd`、`web-naive` 为 vben 模板示例，一般不用
-- `web/ai-admin-uni` 为 uni-app 移动端，按需启用
-- 工作流 UI 尚未完全迁入 vben，可按需从历史提交参考
+- 生产推荐 **SPA 一体化发布**：前端 `dist` 打进 `AIAdmin.Api.Host/wwwroot`，单端口同时提供管理界面与 `/api/v1`
+
+### 一体化发布（SPA + API 同域）
+
+前端生产配置已使用相对路径 `VITE_GLOB_API_URL=/api/v1`，与后端同端口部署，无需 Nginx 反代前端。
+
+```powershell
+# 一键：构建 web-ele + publish 到 publish/admin
+.\scripts\publish-admin.ps1
+
+# 或 MSBuild 内嵌构建前端
+dotnet publish src/AIAdmin/AIAdmin.Api.Host -c Release -o ./publish/admin -p:BuildAdminSpa=true
+```
+
+| 步骤 | 说明 |
+|------|------|
+| 构建前端 | `cd web/ai-admin && pnpm install && pnpm build:ele` |
+| 同步静态资源 | dist → `src/AIAdmin/AIAdmin.Api.Host/wwwroot/`（脚本 / csproj 自动） |
+| 发布后端 | `dotnet publish src/AIAdmin/AIAdmin.Api.Host -c Release -o ./publish/admin` |
+| 生产配置 | 复制并修改 `appsettings.Production.json`（JWT、数据库、Gateway 地址、OAuth RedirectUri） |
+| 访问 | `http://服务器:5062/` 管理台；API 为同域 `/api/v1` |
+
+开发时仍可前后端分离（**5777 只是页面，接口必须靠 5062 后端**）：
+
+```powershell
+# 方式 A：一键开两个进程
+.\scripts\dev-admin.ps1
+
+# 方式 B：两个终端
+dotnet run --project src/AIAdmin/AIAdmin.Api.Host   # :5062
+cd web/ai-admin && pnpm dev:ele                      # :5777，/api 代理到 5062
+```
+
+浏览器访问 `http://localhost:5777/` 时，Network 里应看到请求先到 `5777/api/v1/...`，由 Vite 转发到 `5062`。若 5062 未启动，会报连接失败或 502/500。
 
 ---
 
@@ -376,23 +409,39 @@ dotnet run
 
 ### Gateway
 
+纯 API 服务（无 SPA），Debug 双击 exe 与 Release 发布行为与 AIAdmin 对齐：
+
+| 项 | 说明 |
+|----|------|
+| 端口 | `appsettings.json` → `Kestrel` 固定 **5080**（`0.0.0.0`，局域网可访问） |
+| Debug exe 环境 | 未设环境变量时自动 **Development**（Swagger 可用） |
+| ContentRoot | exe 同目录（`logs/`、`uploads/`、`data/` 自动创建） |
+| 分发 | 打包整个 `publish/gateway` 目录，不要只发 exe |
+
 ```powershell
-$env:ASPNETCORE_ENVIRONMENT = "Production"
+.\scripts\publish-gateway.ps1
+# 或
 dotnet publish src/DataChat/DataChat.Gateway -c Release -o ./publish/gateway
 ```
 
-### Admin API
+本地 Debug exe：`Rebuild` 后运行 `bin\Debug\net10.0\DataChat.Gateway.exe`，访问 `http://localhost:5080/swagger`。
+
+### Admin（SPA 一体化，推荐）
+
+API + 管理前端同包发布，访问 `http://服务器:5062/` 即可。
 
 ```powershell
-dotnet publish src/AIAdmin/AIAdmin.Api.Host -c Release -o ./publish/admin-api
+.\scripts\publish-admin.ps1
+# 或
+dotnet publish src/AIAdmin/AIAdmin.Api.Host -c Release -o ./publish/admin -p:BuildAdminSpa=true
 ```
 
-### 前端
+### 前端（仅 chat-ui 需单独构建）
 
 | 项目 | 命令 | 产物 |
 |------|------|------|
 | chat-ui | `cd web/chat-ui && npm run build` | `web/chat-ui/dist/` |
-| ai-admin | `cd web/ai-admin && pnpm build:ele` | `web/ai-admin/apps/web-ele/dist/` |
+| ai-admin | 已并入 Admin 发布脚本 | `publish/admin/wwwroot/` |
 
 ### 生产检查清单
 

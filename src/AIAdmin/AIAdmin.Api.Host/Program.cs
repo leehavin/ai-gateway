@@ -2,7 +2,26 @@
 
 using AIAdmin.Api.Host;
 
-var builder = WebApplication.CreateBuilder(args);
+#if DEBUG
+// 直接运行 bin/Debug 下的 exe 不会读取 launchSettings.json，默认会变成 Production
+if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"))
+    && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")))
+{
+    Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
+}
+#endif
+
+// exe 同目录为 ContentRoot；wwwroot 必须存在（可为空），否则 StaticWebAssets / FileProvider 启动即崩溃
+var contentRoot = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+var webRoot = Path.Combine(contentRoot, "wwwroot");
+Directory.CreateDirectory(webRoot);
+
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = contentRoot,
+    WebRootPath = webRoot,
+});
 
 builder.Host.UseAutofac();
 

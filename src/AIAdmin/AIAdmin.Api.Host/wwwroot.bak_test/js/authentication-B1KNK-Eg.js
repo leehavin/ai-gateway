@@ -1,0 +1,1 @@
+const e="Sign In",t="Enterprise Agent Operations Platform",c="Unified model access, orchestration, and secure access governance",n="Enter your account credentials to access the platform",o={welcomeBack:e,pageTitle:t,pageDesc:c,loginSubtitle:n};export{o as default,n as loginSubtitle,c as pageDesc,t as pageTitle,e as welcomeBack};
