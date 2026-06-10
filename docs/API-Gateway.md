@@ -7,6 +7,7 @@
 - **用户会话 Token**：`POST /v1/auth/login` 或宿主 `POST /v1/auth/token` 签发（HMAC，需 `Gateway:Auth:SigningKey`）。
 - **静态 Token**：`Gateway:ValidTokens`（共享模式，会话不按用户隔离）。
 - **WinForms 嵌入**：宿主用 `ServiceKey` 换用户 Token，再 `postMessage` 注入 chat-ui。
+- **案件文档带入**：宿主 `POST /v1/files/register` 登记本地五书路径 → `postMessage` `datachat:runWorkflow` 触发 PatentOA 等工作流。
 
 ## 认证
 
@@ -122,7 +123,29 @@ DB-GPT 连通性由 `GET /v1/health` 的 `dbgptReachable` 探测；对话走 `PO
 | `DomainsSource` | `File` 或 `Database`（Sqlite 表 `dc_domain`） |
 | `Gateway:DatabasePath` | 会话 + 领域配置共用 SQLite 路径 |
 
-领域数据库说明见 [Domains-Database.md](Domains-Database.md)。
+领域数据库说明见 [Domains-Database.md](Domains-Database.md).
+
+## 文件（工作流 doc 等）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/v1/files/upload` | 浏览器 / 宿主 multipart 上传，需用户 Bearer Token |
+| POST | `/v1/files/register` | 宿主登记**本机已有文件路径**，需 `X-Service-Key` 或 body `serviceKey` |
+| GET | `/v1/files/{fileId}` | 下载已登记文件 |
+
+`register` 请求体：`{ "path": "D:\\cases\\环头.doc" }` → 返回 `{ fileId, name, url, ... }`。
+
+chat-ui 嵌入协议（`postMessage`）：
+
+```json
+{
+  "type": "datachat:runWorkflow",
+  "domainId": "patent-oa",
+  "workflowId": "7649037302673063970",
+  "input": "请对本案五书进行核稿",
+  "files": [{ "fileId": "...", "name": "环头.doc" }]
+}
+```
 
 | `Gateway:PersistSessions` | 流式后写入会话 |
 | `Gateway:EnableSessionApi` | 是否开放 `/v1/sessions` |

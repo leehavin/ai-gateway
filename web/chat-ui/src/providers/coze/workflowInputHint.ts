@@ -91,6 +91,19 @@ export function groupWorkflowInputs(inputs?: CozeWorkflowInputSpec[]): GroupedWo
   return { requiredFiles, optionalFiles, textInputs }
 }
 
+/** 工作流是否必须上传附件（inputs 为空时回退 needsAttachment）。 */
+export function countRequiredAttachments(wf: CozeWorkflowItem): number {
+  const { requiredFiles } = groupWorkflowInputs(wf.inputs)
+  if (requiredFiles.length > 0) return requiredFiles.length
+  return wf.needsAttachment ? 1 : 0
+}
+
+export function requiredAttachmentLabels(wf: CozeWorkflowItem): string[] {
+  const { requiredFiles } = groupWorkflowInputs(wf.inputs)
+  if (requiredFiles.length > 0) return requiredFiles.map(inputDisplayLabel)
+  return wf.needsAttachment ? ['文档'] : []
+}
+
 export function workflowCardSubtitle(wf: CozeWorkflowItem): string {
   if (wf.description?.trim()) return wf.description.trim()
   if (wf.inputSummary?.trim()) return wf.inputSummary.trim()

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using DataChat.Core.Entities;
 using Microsoft.Web.WebView2.WinForms;
@@ -60,6 +61,30 @@ public sealed class ChatWebViewHost : Panel
             userId,
             userName,
             token
+        });
+        await ExecAsync($"window.postMessage({payload}, '*')");
+    }
+
+    /// <summary>
+    /// 触发嵌入 chat-ui 执行 Coze 工作流（案件五书核稿等）。
+    /// files 的 fileId 来自 Gateway <c>/v1/files/upload</c> 或 <c>/v1/files/register</c>。
+    /// </summary>
+    public async Task RunWorkflowAsync(
+        string domainId,
+        string workflowId,
+        string? input,
+        IReadOnlyList<(string FileId, string Name)>? files = null,
+        bool newSession = true)
+    {
+        await EnsureReadyAsync();
+        var payload = JsonSerializer.Serialize(new
+        {
+            type = "datachat:runWorkflow",
+            domainId,
+            workflowId,
+            input,
+            files = files?.Select(f => new { fileId = f.FileId, name = f.Name }).ToArray(),
+            newSession
         });
         await ExecAsync($"window.postMessage({payload}, '*')");
     }

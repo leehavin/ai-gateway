@@ -20,9 +20,10 @@ public sealed class GatewayExceptionMiddleware
         {
             await _next(context);
         }
-        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (
+            context.RequestAborted.IsCancellationRequested || ex.CancellationToken.IsCancellationRequested)
         {
-            _logger.LogInformation("请求已取消 {Path}", context.Request.Path);
+            _logger.LogDebug("请求已取消 {Path}", context.Request.Path);
         }
         catch (Exception ex)
         {

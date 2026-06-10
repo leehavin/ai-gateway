@@ -1,6 +1,7 @@
 import { computed, ref, type Ref } from 'vue'
 import type { SseEvent } from '../../api/sse'
 import { resumeCozeWorkflow, streamCozeWorkflow } from './api'
+import type { ChatAttachmentRef } from '../../types/attachments'
 import type {
   ChatMessage,
   ChatSession,
@@ -9,7 +10,12 @@ import type {
 } from '../../types'
 import type { ProviderChatBanner } from '../types'
 import { normalizeOutgoingMessage } from '../../utils/composerTokens'
-import { workflowPlaceholderHint, workflowToastMessage } from './workflowInputHint'
+import {
+  countRequiredAttachments,
+  requiredAttachmentLabels,
+  workflowPlaceholderHint,
+  workflowToastMessage,
+} from './workflowInputHint'
 
 function uid() {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -28,6 +34,10 @@ export interface CozeChatDeps {
   setStartPage: (v: boolean) => void
   getAbortSignal: () => AbortSignal | undefined
   setAbortController: (c: AbortController | null) => void
+  getReadyAttachments: () => ChatAttachmentRef[]
+  formatAttachmentNote: (refs: ChatAttachmentRef[]) => string
+  clearAttachments: () => void
+  hasUploading: () => boolean
 }
 
 /** Coze 专有对话逻辑：工作流执行 / 中断续跑。 */
@@ -90,6 +100,7 @@ export function useCozeChat(deps: CozeChatDeps) {
     assistant: ChatMessage,
     workflow: CozeWorkflowItem,
     input: string,
+    files: ChatAttachmentRef[] = [],
     resume?: CozeWorkflowInterrupt
   ) {
     const abortCtrl = new AbortController()
@@ -115,6 +126,7 @@ export function useCozeChat(deps: CozeChatDeps) {
             domain: deps.domainId.value,
             workflowId: workflow.workflowId,
             input: input.trim() || undefined,
+            attachments: files.length ? files : undefined,
           },
           onEvent,
           abortCtrl.signal
@@ -135,21 +147,27 @@ export function useCozeChat(deps: CozeChatDeps) {
     }
   }
 
-  async function executeWorkflow(workflow: CozeWorkflowItem, userInput: string) {
+  async function executeWorkflow(
+    workflow: CozeWorkflowItem,
+    userInput: string,
+    files: ChatAttachmentRef[] = []
+  ) {
     workflowInterrupt.value = null
     pendingWorkflow.value = null
     deps.setStartPage(false)
     deps.closeAsideIfNarrow()
 
     const trimmed = userInput.trim()
+    const note = deps.formatAttachmentNote(files)
     const displayContent = trimmed
-      ? `▶ ${workflow.displayName}：${trimmed}`
-      : `▶ ${workflow.displayName}`
+      ? `▶ ${workflow.displayName}：${trimmed}${note}`
+      : `▶ ${workflow.displayName}${note}`
 
     deps.session.value.messages.push({
       id: uid(),
       role: 'user',
       content: displayContent,
+      attachments: files.length ? [...files] : undefined,
     })
 
     const assistant: ChatMessage = {
@@ -159,23 +177,70 @@ export function useCozeChat(deps: CozeChatDeps) {
       loading: true,
     }
     deps.session.value.messages.push(assistant)
-    await runWorkflowAssistantStream(assistant, workflow, trimmed)
+    await runWorkflowAssistantStream(assistant, workflow, trimmed, files)
   }
 
   function queueWorkflow(workflow: CozeWorkflowItem) {
     const input = deps.inputValue.value.trim()
-    if (input) {
-      deps.inputValue.value = ''
-      void executeWorkflow(workflow, input)
+    const files = deps.getReadyAttachments()
+    const requiredCount = countRequiredAttachments(workflow)
+
+    // 需要附件时：除非附件已齐且用户已输入说明，否则进入待输入状态（避免有文字无附件就执行）
+    if (requiredCount > 0) {
+      pendingWorkflow.value = workflow
+      if (files.length >= requiredCount && input) {
+        deps.inputValue.value = ''
+        deps.clearAttachments()
+        void executeWorkflow(workflow, input, files)
+        return
+      }
+      deps.showToast(workflowToastMessage(workflow))
+      deps.composerFocusNonce.value++
       return
     }
+
+    if (input) {
+      deps.inputValue.value = ''
+      void executeWorkflow(workflow, input, files)
+      return
+    }
+
     pendingWorkflow.value = workflow
     deps.showToast(workflowToastMessage(workflow))
     deps.composerFocusNonce.value++
   }
 
+  function findWorkflow(
+    workflows: CozeWorkflowItem[],
+    workflowId?: string,
+    workflowName?: string
+  ): CozeWorkflowItem | null {
+    if (workflowId) {
+      const hit = workflows.find((w) => w.workflowId === workflowId)
+      if (hit) return hit
+    }
+    if (workflowName) {
+      const key = workflowName.trim().toLowerCase()
+      const hit = workflows.find(
+        (w) =>
+          w.workflowId === workflowName ||
+          w.displayName.trim().toLowerCase() === key
+      )
+      if (hit) return hit
+    }
+    return null
+  }
+
+  function syntheticWorkflow(workflowId: string, workflowName?: string): CozeWorkflowItem {
+    return {
+      workflowId,
+      displayName: workflowName?.trim() || '工作流',
+      inputParameter: 'BOT_USER_INPUT',
+    }
+  }
+
   function queueWorkflowById(workflowId: string, workflows: CozeWorkflowItem[]) {
-    const wf = workflows.find((w) => w.workflowId === workflowId)
+    const wf = findWorkflow(workflows, workflowId)
     if (!wf) {
       deps.showToast('工作流不可用，请刷新 /coze 列表')
       return
@@ -183,8 +248,18 @@ export function useCozeChat(deps: CozeChatDeps) {
     queueWorkflow(wf)
   }
 
+  async function runWorkflowDirect(
+    workflow: CozeWorkflowItem,
+    userInput: string,
+    files: ChatAttachmentRef[] = []
+  ) {
+    deps.inputValue.value = ''
+    await executeWorkflow(workflow, userInput, files)
+  }
+
   async function tryHandleSubmit(raw: string): Promise<boolean> {
     if (!deps.enabled.value) return false
+    if (deps.hasUploading()) return true
 
     if (workflowInterrupt.value) {
       const msg = normalizeOutgoingMessage(raw)
@@ -207,16 +282,24 @@ export function useCozeChat(deps: CozeChatDeps) {
         displayName: interrupt.nodeTitle || '工作流',
         inputParameter: 'BOT_USER_INPUT',
       }
-      await runWorkflowAssistantStream(assistant, wf, msg, interrupt)
+      await runWorkflowAssistantStream(assistant, wf, msg, [], interrupt)
       return true
     }
 
     const msg = normalizeOutgoingMessage(raw)
+    const files = deps.getReadyAttachments()
     if (pendingWorkflow.value) {
-      if (!msg) return true
       const wf = pendingWorkflow.value
+      const requiredCount = countRequiredAttachments(wf)
+      if (!msg && !files.length) return true
+      if (requiredCount > 0 && files.length < requiredCount) {
+        deps.showToast(`请先上传：${requiredAttachmentLabels(wf).join('、')}`)
+        return true
+      }
+
       deps.inputValue.value = ''
-      await executeWorkflow(wf, msg)
+      deps.clearAttachments()
+      await executeWorkflow(wf, msg, files)
       return true
     }
 
@@ -231,6 +314,9 @@ export function useCozeChat(deps: CozeChatDeps) {
     clearState,
     queueWorkflow,
     queueWorkflowById,
+    findWorkflow,
+    syntheticWorkflow,
+    runWorkflowDirect,
     tryHandleSubmit,
   }
 }

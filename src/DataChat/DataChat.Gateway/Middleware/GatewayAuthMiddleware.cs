@@ -67,7 +67,9 @@ public sealed class GatewayAuthMiddleware
         || path.Equals("/health", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>无需 Bearer；由控制器内 ServiceKey 等机制鉴权（宿主文件登记等）。</summary>
     private static bool IsAuthEntryPath(string path) =>
         path.Equals("/v1/auth/login", StringComparison.OrdinalIgnoreCase)
-        || path.Equals("/v1/auth/token", StringComparison.OrdinalIgnoreCase);
+        || path.Equals("/v1/auth/token", StringComparison.OrdinalIgnoreCase)
+        || path.Equals("/v1/files/register", StringComparison.OrdinalIgnoreCase);
 }

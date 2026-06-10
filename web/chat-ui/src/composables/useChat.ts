@@ -3,6 +3,7 @@ import { toDisplayUser } from '../api/auth'
 import { submitMessageFeedback } from '../api/feedback'
 import { buildHistory, streamChat } from '../api/gateway'
 import { getHostUser, onHostUserChange } from '../bridge/hostAuth'
+import type { HostRunWorkflowPayload } from '../bridge/hostContext'
 import { useCozeChat } from '../providers/coze'
 import { normalizeChatParams, type ChatGenerationParameters } from '../types/chatParams'
 import { newSessionId } from '../utils/session'
@@ -38,7 +39,12 @@ export function useChat(
   history: ReturnType<typeof useHistory>,
   attachments: ReturnType<typeof useAttachments>,
   chatParams: Ref<ChatGenerationParameters>,
-  cozeWorkflows: Ref<CozeWorkflowItem[]>
+  cozeWorkflows: Ref<CozeWorkflowItem[]>,
+  cozeWorkflowsLoading?: Ref<boolean>,
+  refreshCozeWorkflowsNow?: (options?: {
+    silent?: boolean
+    force?: boolean
+  }) => Promise<void>
 ) {
   const session = ref<ChatSession>(emptySession())
   const inputValue = ref('')
@@ -82,6 +88,10 @@ export function useChat(
     setAbortController: (c) => {
       abortCtrl = c
     },
+    getReadyAttachments: () => attachments.readyAttachments.value,
+    formatAttachmentNote: attachments.formatAttachmentNote,
+    clearAttachments: attachments.clearAttachments,
+    hasUploading: () => attachments.hasUploading.value,
   })
 
   const userName = ref(toDisplayUser(getHostUser()))
@@ -381,6 +391,72 @@ export function useChat(
     cozeChat.queueWorkflowById(workflowId, cozeWorkflows.value)
   }
 
+  async function resolveHostWorkflow(
+    payload: HostRunWorkflowPayload
+  ): Promise<CozeWorkflowItem | null> {
+    const deadline = Date.now() + 15000
+    while (Date.now() < deadline) {
+      if (refreshCozeWorkflowsNow) {
+        await refreshCozeWorkflowsNow({ silent: true, force: true }).catch(() => {})
+      }
+      const hit = cozeChat.findWorkflow(
+        cozeWorkflows.value,
+        payload.workflowId,
+        payload.workflowName
+      )
+      if (hit) return hit
+      if (!cozeWorkflowsLoading?.value && cozeWorkflows.value.length > 0) break
+      await new Promise((r) => setTimeout(r, 300))
+    }
+    if (payload.workflowId) {
+      return cozeChat.syntheticWorkflow(payload.workflowId, payload.workflowName)
+    }
+    return cozeChat.findWorkflow(cozeWorkflows.value, undefined, payload.workflowName)
+  }
+
+  async function handleHostRunWorkflow(payload: HostRunWorkflowPayload) {
+    if (sending.value) {
+      showToast('当前正在生成，请稍后再试')
+      return
+    }
+
+    if (payload.domainId && payload.domainId !== domainId.value) {
+      preserveInputNextDomainSwitch.value = true
+      domainId.value = payload.domainId
+      await new Promise((r) => setTimeout(r, 400))
+    }
+
+    if (!isCozeDomain.value) {
+      showToast('当前智能体不支持工作流')
+      return
+    }
+
+    const workflow = await resolveHostWorkflow(payload)
+    if (!workflow) {
+      showToast('未找到对应工作流，请检查 workflowId / workflowName')
+      return
+    }
+
+    const files = (payload.files ?? []).map((f) => ({
+      fileId: f.fileId,
+      name: f.name,
+    }))
+    const input = payload.input?.trim() ?? ''
+
+    if (payload.newSession !== false) {
+      newConversation()
+    }
+
+    if (payload.prefillOnly) {
+      if (files.length) attachments.setPreuploadedFiles(files)
+      if (input) inputValue.value = input
+      cozeChat.queueWorkflow(workflow)
+      return
+    }
+
+    await cozeChat.runWorkflowDirect(workflow, input || '请对本案五书进行核稿', files)
+  }
+
   return {
     session,
     inputValue,
@@ -415,5 +491,6 @@ export function useChat(
     providerBanners: cozeChat.banners,
     clearProviderState: cozeChat.clearState,
     runCozeWorkflow,
+    handleHostRunWorkflow,
   }
 }

@@ -41,7 +41,7 @@ USING (
         N'7649037302673063970' AS external_id,
         N'PatentOA' AS display_name,
         N'专利答OA' AS description,
-        N'{"inputParameter":"BOT_USER_INPUT","inputHint":""}' AS config_json
+        N'{"inputParameter":"BOT_USER_INPUT","inputHint":"上传五书文档后发送","inputs":[{"name":"doc","type":"file","required":true,"label":"五书文档","accept":[".doc",".docx",".pdf"]}]}' AS config_json
 ) AS s ON t.agent_id = s.agent_id AND t.resource_type = s.resource_type AND t.external_id = s.external_id
 WHEN MATCHED THEN
     UPDATE SET display_name = s.display_name, description = s.description, enabled = 1, update_time = SYSDATETIME()

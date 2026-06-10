@@ -94,6 +94,13 @@ public static class CozeWorkflowInputCatalog
     public static bool NeedsAttachment(IReadOnlyList<CozeWorkflowInputSpec> inputs) =>
         inputs.Any(IsAttachmentType);
 
+    public static IReadOnlyList<CozeWorkflowInputSpec> GetOrderedAttachmentInputs(
+        IReadOnlyList<CozeWorkflowInputSpec> inputs) =>
+        inputs.Where(IsAttachmentType)
+            .OrderBy(i => i.Required ? 0 : 1)
+            .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
     public static string BuildPlaceholderHint(
         IReadOnlyList<CozeWorkflowInputSpec> inputs,
         string? inputHint,

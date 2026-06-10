@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { flushPendingHostRunWorkflow, onHostRunWorkflow } from './bridge/hostContext'
+import { parseHostLaunchParams } from './bridge/hostLaunch'
 import { ApiUnauthorizedError } from './api/http'
 import AppHeader from './components/AppHeader.vue'
 import LoginView from './components/LoginView.vue'
@@ -66,6 +68,7 @@ const {
   loading: cozeWorkflowsLoading,
   error: cozeWorkflowsError,
   refresh: refreshCozeWorkflows,
+  refreshNow: refreshCozeWorkflowsNow,
 } = useCozeResources(domainId, isCozeDomain)
 
 function onRefreshCozeWorkflows(reason: 'open' | 'manual' = 'open') {
@@ -128,7 +131,36 @@ const {
   hasHistory,
   providerBanners,
   runCozeWorkflow,
-} = useChat(domainId, activeDomain, history, attachments, chatParams, cozeWorkflows)
+  handleHostRunWorkflow,
+} = useChat(
+  domainId,
+  activeDomain,
+  history,
+  attachments,
+  chatParams,
+  cozeWorkflows,
+  cozeWorkflowsLoading,
+  refreshCozeWorkflowsNow
+)
+
+let offHostRunWorkflow = () => {}
+onMounted(() => {
+  offHostRunWorkflow = onHostRunWorkflow((payload) => {
+    void handleHostRunWorkflow(payload)
+  })
+  flushPendingHostRunWorkflow()
+})
+onUnmounted(() => offHostRunWorkflow())
+
+watch(
+  () => canLoadData.value,
+  (ready) => {
+    if (!ready) return
+    const launch = parseHostLaunchParams()
+    if (launch) void handleHostRunWorkflow(launch)
+  },
+  { immediate: true }
+)
 
 const { historyList, renameSessionTitle, togglePin } = history
 

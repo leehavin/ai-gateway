@@ -19,21 +19,6 @@ const STORAGE_TOKEN = 'datachat:token'
 const STORAGE_USER_ID = 'datachat:userId'
 const STORAGE_USER_NAME = 'datachat:userName'
 
-declare global {
-  interface Window {
-    __DATACHAT_TOKEN__?: string
-    __DATACHAT_USER_ID__?: string
-    __DATACHAT_USER_NAME__?: string
-    DataChatHost?: {
-      getToken: () => string | undefined
-      setToken: (token: string) => void
-      getUser: () => HostUser | undefined
-      setUser: (user: HostUser, token?: string) => void
-      isEmbedded: () => boolean
-    }
-  }
-}
-
 let runtimeToken: string | null = null
 let runtimeUser: HostUser | null = null
 let embeddedHost = false

@@ -33,6 +33,8 @@ public sealed class CozeWorkflowStreamRequest
     /// <summary>用户输入，映射到工作流 input 参数。</summary>
     public string? Input { get; set; }
     public Dictionary<string, string>? Parameters { get; set; }
+    /// <summary>Gateway 已上传的附件，服务端会转传 Coze 并映射到工作流文件类参数（如 doc）。</summary>
+    public List<ChatAttachmentDto>? Attachments { get; set; }
 }
 
 public sealed class CozeWorkflowResumeRequestDto

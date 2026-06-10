@@ -40,6 +40,7 @@ export async function streamCozeWorkflow(
     workflowId: string
     input?: string
     parameters?: Record<string, string>
+    attachments?: { fileId: string; name?: string }[]
   },
   onEvent: (event: SseEvent) => void,
   signal?: AbortSignal
@@ -52,6 +53,7 @@ export async function streamCozeWorkflow(
       workflowId: params.workflowId,
       input: params.input,
       parameters: params.parameters,
+      attachments: params.attachments,
     }),
     signal,
   })

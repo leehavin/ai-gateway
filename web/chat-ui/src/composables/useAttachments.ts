@@ -43,6 +43,24 @@ export function useAttachments() {
     fileItems.value = []
   }
 
+  /** 宿主已通过 Gateway 上传的文件，直接挂到输入区（fileId 来自 /v1/files/upload 或 register）。 */
+  function setPreuploadedFiles(refs: ChatAttachmentRef[]) {
+    const next: ChatFileItem[] = refs.map((ref, i) => ({
+      uid: Date.now() + i + Math.random(),
+      name: ref.name,
+      size: 0,
+      status: 'success' as const,
+      response: {
+        fileId: ref.fileId,
+        name: ref.name,
+        contentType: 'application/octet-stream',
+        size: 0,
+        url: `/v1/files/${ref.fileId}`,
+      },
+    }))
+    fileItems.value = next
+  }
+
   function formatAttachmentNote(refs: ChatAttachmentRef[]): string {
     if (!refs.length) return ''
     return '\n\n📎 ' + refs.map((a) => a.name).join('、')
@@ -106,6 +124,7 @@ export function useAttachments() {
     readyAttachments,
     hasUploading,
     clearAttachments,
+    setPreuploadedFiles,
     formatAttachmentNote,
     dropZoneEl,
     fileInputEl,

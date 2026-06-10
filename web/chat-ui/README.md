@@ -115,6 +115,25 @@ npm run build
 
 页面加载后会向父窗口发送 `{ type: 'datachat:ready' }`。
 
+### 宿主带入案件文档并执行工作流（五书核稿等）
+
+宿主先将案件文档登记到 Gateway（`POST /v1/files/register`，Header `X-Service-Key`）或 `POST /v1/files/upload`（用户 Token），再 `postMessage`：
+
+```json
+{
+  "type": "datachat:runWorkflow",
+  "domainId": "patent-oa",
+  "workflowId": "7649037302673063970",
+  "input": "请对本案五书进行核稿",
+  "files": [{ "fileId": "...", "name": "环头.doc" }],
+  "newSession": true
+}
+```
+
+chat-ui 会切换智能体、新开会话并自动执行工作流；成功时父窗口收到 `{ type: 'datachat:runWorkflowAck', ok: true }`。
+
+WinForms 可参考 `HostChatBridge.RunWorkflowFromLocalFilesAsync`（`DataChat.WinForms`）。
+
 ### 独立 Web 登录
 
 配置 Gateway `Auth:SigningKey` 与 `Auth:Users` 后，设置 `.env`：

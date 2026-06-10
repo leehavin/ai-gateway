@@ -283,6 +283,47 @@ public sealed class CozeOpenApiClient
         return null;
     }
 
+    /// <summary>上传本地文件到 Coze，返回 file_id（用于工作流文件类参数）。</summary>
+    public async Task<string> UploadFileAsync(
+        CozeDomainOptions coze,
+        GlobalDefaults defaults,
+        Stream content,
+        string fileName,
+        CancellationToken cancellationToken = default)
+    {
+        var ctx = await _clientFactory.CreateContextAsync(coze, defaults, cancellationToken);
+        var url = $"https://{ctx.EndPoint}/v1/files/upload";
+
+        using var multipart = new MultipartFormDataContent();
+        var streamContent = new StreamContent(content);
+        streamContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        multipart.Add(streamContent, "file", string.IsNullOrWhiteSpace(fileName) ? "file" : fileName);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ctx.AccessToken);
+        request.Content = multipart;
+
+        var client = _httpClientFactory.CreateClient(CozeHttpClientNames.Client);
+        using var response = await client.SendAsync(request, cancellationToken);
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException(
+                $"Coze 文件上传失败 ({(int)response.StatusCode}): {Truncate(ParseCozeError(json) ?? json, 300)}");
+
+        var envelope = ParseJson<CozeApiEnvelope<CozeFileUploadData>>(json);
+        if (envelope?.Code is not null and not 0)
+            throw new InvalidOperationException(envelope.Msg ?? $"Coze 文件上传错误码 {envelope.Code}");
+
+        var fileId = envelope?.Data?.Id;
+        if (string.IsNullOrWhiteSpace(fileId))
+            throw new InvalidOperationException("Coze 文件上传未返回 file_id。");
+
+        return fileId;
+    }
+
+    public static string FormatFileParameterValue(string cozeFileId) =>
+        JsonSerializer.Serialize(new { file_id = cozeFileId }, JsonOptions);
+
     public async IAsyncEnumerable<ChatChunk> StreamRunAsync(
         DomainProfile domain,
         GlobalDefaults defaults,
@@ -534,6 +575,11 @@ public sealed class CozeOpenApiClient
         public long? Code { get; set; }
         public string? Msg { get; set; }
         public T? Data { get; set; }
+    }
+
+    private sealed class CozeFileUploadData
+    {
+        public string? Id { get; set; }
     }
 
     private sealed class WorkflowListData

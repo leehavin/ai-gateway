@@ -15,17 +15,20 @@ public sealed class CozeWorkflowService
     private readonly CozeOpenApiClient _cozeApi;
     private readonly ICurrentUserService _currentUser;
     private readonly IAgentAccessService _access;
+    private readonly FileStorageService _files;
 
     public CozeWorkflowService(
         IDomainCatalog domains,
         CozeOpenApiClient cozeApi,
         ICurrentUserService currentUser,
-        IAgentAccessService access)
+        IAgentAccessService access,
+        FileStorageService files)
     {
         _domains = domains;
         _cozeApi = cozeApi;
         _currentUser = currentUser;
         _access = access;
+        _files = files;
     }
 
     public DomainProfile? ResolveDomain(string domainId) =>
@@ -157,6 +160,7 @@ public sealed class CozeWorkflowService
         string workflowId,
         string? input,
         Dictionary<string, string>? extra,
+        IReadOnlyList<ChatAttachmentDto>? attachments,
         CancellationToken cancellationToken)
     {
         var domain = ResolveDomain(domainId)!;
@@ -167,12 +171,16 @@ public sealed class CozeWorkflowService
             cancellationToken) ?? throw new InvalidOperationException($"未知工作流: {workflowId}");
 
         var coze = domain.Coze!;
+        var configured = coze.Workflows?.FirstOrDefault(w =>
+            string.Equals(w.WorkflowId, workflowId, StringComparison.OrdinalIgnoreCase));
+        var apiSpecs = await _cozeApi.TryGetWorkflowInputSpecsAsync(
+            coze, _domains.Current.Defaults, workflowId, cancellationToken);
+        var merged = CozeWorkflowInputCatalog.MergeWithConfig(apiSpecs, configured?.Inputs);
+
         var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         if (coze.Workflows is not null)
         {
-            var configured = coze.Workflows.FirstOrDefault(w =>
-                string.Equals(w.WorkflowId, workflowId, StringComparison.OrdinalIgnoreCase));
             if (configured?.DefaultParameters is not null)
             {
                 foreach (var kv in configured.DefaultParameters)
@@ -186,11 +194,61 @@ public sealed class CozeWorkflowService
                 parameters[kv.Key] = kv.Value;
         }
 
+        if (attachments is { Count: > 0 })
+        {
+            var fileInputs = CozeWorkflowInputCatalog.GetOrderedAttachmentInputs(merged);
+            if (fileInputs.Count == 0)
+                throw new InvalidOperationException("该工作流不接受附件。");
+
+            if (attachments.Count > fileInputs.Count)
+                throw new InvalidOperationException($"附件数量超过工作流限制（最多 {fileInputs.Count} 个）。");
+
+            var requiredCount = fileInputs.Count(i => i.Required);
+            if (attachments.Count < requiredCount)
+            {
+                var names = string.Join("、", fileInputs.Where(i => i.Required).Select(DisplayAttachmentLabel));
+                throw new InvalidOperationException($"缺少必填附件：{names}");
+            }
+
+            for (var i = 0; i < attachments.Count; i++)
+            {
+                var att = attachments[i];
+                if (string.IsNullOrWhiteSpace(att.FileId))
+                    throw new InvalidOperationException("attachments.fileId 不能为空。");
+
+                var stored = _files.Get(att.FileId)
+                    ?? throw new InvalidOperationException($"附件不存在或已过期: {att.FileId}");
+
+                await using var stream = File.OpenRead(stored.Path);
+                var cozeFileId = await _cozeApi.UploadFileAsync(
+                    coze,
+                    _domains.Current.Defaults,
+                    stream,
+                    att.Name ?? stored.Name,
+                    cancellationToken);
+
+                parameters[fileInputs[i].Name] = CozeOpenApiClient.FormatFileParameterValue(cozeFileId);
+            }
+        }
+        else
+        {
+            var missingRequired = CozeWorkflowInputCatalog.GetOrderedAttachmentInputs(merged)
+                .Where(i => i.Required)
+                .Where(i => !parameters.ContainsKey(i.Name))
+                .Select(DisplayAttachmentLabel)
+                .ToList();
+            if (missingRequired.Count > 0)
+                throw new InvalidOperationException($"缺少必填附件：{string.Join("、", missingRequired)}");
+        }
+
         if (!string.IsNullOrWhiteSpace(input))
             parameters[wf.InputParameter] = input.Trim();
 
         return parameters;
     }
+
+    private static string DisplayAttachmentLabel(CozeWorkflowInputSpec spec) =>
+        !string.IsNullOrWhiteSpace(spec.Label) ? spec.Label!.Trim() : spec.Name;
 
     public IAsyncEnumerable<ChatChunk> StreamRunAsync(
         CozeWorkflowStreamRequest request,
@@ -232,6 +290,7 @@ public sealed class CozeWorkflowService
                 request.WorkflowId,
                 request.Input,
                 request.Parameters,
+                request.Attachments,
                 cancellationToken);
         }
         catch (Exception ex)
