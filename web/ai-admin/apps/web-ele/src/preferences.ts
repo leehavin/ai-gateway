@@ -14,4 +14,7 @@ export const overridesPreferences = defineOverridesPreferences({
     checkUpdatesInterval: 30,
     name: import.meta.env.VITE_APP_TITLE,
   },
+  logo: {
+    source: '/logo-icon.svg',
+  },
 });

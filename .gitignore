@@ -32,7 +32,7 @@
 
 # Gateway / Admin 运行时目录
 **/uploads/
-**/Ip2region/
+**/Ip2region/ip2region.xdb
 
 # 本地 SQLite / 数据库文件
 **/*.db

@@ -15,6 +15,7 @@ const logo = computed(() => preferences.logo.source);
     :copyright="false"
     :app-name="appName"
     :logo="logo"
+    slogan-image="/logo.svg"
     :page-description="$t('authentication.pageDesc')"
     :page-title="$t('authentication.pageTitle')"
   >
